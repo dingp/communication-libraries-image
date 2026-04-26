@@ -67,6 +67,42 @@ OMPI_MCA_mtl=ofi
 The `openmpi-ofi-ucx-*` images include UCX and enable OpenSHMEM, but the default MPI path remains OFI/CXI.
 Use those combined images when you need OpenSHMEM or want an image that also carries UCX components.
 
+## LINKx Status
+
+The CSCS OpenMPI documentation shows LINKx for uenv OpenMPI with:
+
+```bash
+PMIX_MCA_psec=native
+FI_PROVIDER=lnx
+FI_LNX_PROV_LINKS='shm+cxi:cxi0|shm+cxi:cxi1|shm+cxi:cxi2|shm+cxi:cxi3'
+FI_SHM_USE_XPMEM=1
+OMPI_MCA_pml=cm
+OMPI_MCA_mtl=ofi
+OMPI_MCA_mtl_ofi_av=table
+```
+
+That is the intended OFI layout for combining `shm` intra-node traffic with `cxi` inter-node traffic.
+The same CSCS page's container section still gives the CXI-only container runtime environment, and notes that it does not currently provide instructions to enable LINKx in manually built container images.
+
+For these Perlmutter containers, LINKx is not part of the default runtime path.
+The tested libfabric 2.1.0 and 2.3.1 container images both list the `lnx` provider, but `fi_info` does not return usable `shm+cxi` provider entries on Perlmutter:
+
+```bash
+FI_PROVIDER=lnx \
+FI_LNX_PROV_LINKS=shm+cxi:cxi0 \
+FI_SHM_USE_XPMEM=0 \
+fi_info -p lnx -c FI_TAGGED -t FI_EP_RDM
+```
+
+returns:
+
+```text
+fi_getinfo: -61 (No data available)
+```
+
+Use the CXI path unless you are intentionally debugging LINKx.
+The benchmark script has an opt-in `RUN_LNX=1` diagnostic for that purpose.
+
 ## mpi4py Test
 
 The default MPICH and OpenMPI scripts run:
