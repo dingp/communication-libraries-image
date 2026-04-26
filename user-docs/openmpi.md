@@ -1,0 +1,121 @@
+# OpenMPI
+
+The OpenMPI images build OpenMPI 5 inside the container with image-provided libfabric and PMIx.
+The default Perlmutter runtime path is OFI/CXI.
+
+## Images
+
+| Image | Node type | Notes |
+| --- | --- | --- |
+| `ghcr.io/dingp/communication-libraries-image:openmpi-cpu` | CPU | OpenMPI with OFI and PMIx |
+| `ghcr.io/dingp/communication-libraries-image:openmpi-gpu` | GPU | CUDA-aware OpenMPI with OFI and PMIx |
+| `ghcr.io/dingp/communication-libraries-image:openmpi-ofi-ucx-cpu` | CPU | OFI plus UCX, OpenSHMEM enabled |
+| `ghcr.io/dingp/communication-libraries-image:openmpi-ofi-ucx-gpu` | GPU | CUDA-aware OFI plus UCX, OpenSHMEM enabled |
+
+## Runtime
+
+Pull and migrate:
+
+```bash
+podman-hpc pull ghcr.io/dingp/communication-libraries-image:openmpi-ofi-ucx-gpu
+podman-hpc migrate ghcr.io/dingp/communication-libraries-image:openmpi-ofi-ucx-gpu
+```
+
+Submit the standalone script:
+
+```bash
+sbatch scripts/perlmutter-images/run-openmpi-ofi-ucx-gpu.sbatch
+```
+
+Override the application command:
+
+```bash
+APP_COMMAND='./my_openmpi_app input.yaml' \
+  sbatch --export=ALL scripts/perlmutter-images/run-openmpi-ofi-ucx-gpu.sbatch
+```
+
+For the OFI-only image:
+
+```bash
+sbatch scripts/perlmutter-images/run-openmpi-gpu.sbatch
+```
+
+For CPU nodes:
+
+```bash
+sbatch scripts/perlmutter-images/run-openmpi-cpu.sbatch
+sbatch scripts/perlmutter-images/run-openmpi-ofi-ucx-cpu.sbatch
+```
+
+## Runtime Settings
+
+Use PMIx from Slurm:
+
+```bash
+srun --mpi=pmix
+PMIX_MCA_psec=native
+```
+
+Use OFI/CXI for MPI traffic:
+
+```bash
+FI_PROVIDER=cxi
+OMPI_MCA_pml=cm
+OMPI_MCA_mtl=ofi
+```
+
+The `openmpi-ofi-ucx-*` images include UCX and enable OpenSHMEM, but the default MPI path remains OFI/CXI.
+Use those combined images when you need OpenSHMEM or want an image that also carries UCX components.
+
+## mpi4py Test
+
+The default MPICH and OpenMPI scripts run:
+
+```bash
+python3 /workspace/tests/test_mpi4py.py
+```
+
+This verifies that Python extension modules are using the MPI library inside the image and that Slurm PMIx wire-up works across ranks.
+
+## Benchmark Results
+
+OSU Micro-Benchmarks 7.5.2 were run on Perlmutter with CXI enabled.
+For the OpenMPI results, "intra-node" means the two ranks were placed on one node.
+It does not mean OpenMPI used its shared-memory BTL path.
+The benchmark script sets `OMPI_MCA_pml=cm`, `OMPI_MCA_mtl=ofi`, and `FI_PROVIDER=cxi`, so both inter-node and intra-node MPI traffic use OpenMPI's OFI MTL over libfabric's CXI provider.
+This is why OpenMPI intra-node bandwidth is much lower than the MPICH intra-node result, where MPICH was built with `--with-xpmem=/usr` and can use its CH4 shared-memory/XPMEM path for same-node ranks.
+
+CPU results:
+
+| Image | Test | Placement | Best result |
+| --- | --- | --- | --- |
+| `bench-openmpi-cpu` | `osu_bw --validation` | 2 CPU nodes | 23,957.45 MB/s at 4 MiB |
+| `bench-openmpi-cpu` | `osu_bw --validation` | 1 CPU node, 2 ranks | 20,626.52 MB/s at 2 MiB |
+| `bench-openmpi-cpu` | `osu_alltoall --validation` | 2 CPU nodes, 8 ranks | 8.99 us at 2 B |
+| `bench-openmpi-ofi-ucx-cpu` | `osu_bw --validation` | 2 CPU nodes | 23,959.66 MB/s at 4 MiB |
+| `bench-openmpi-ofi-ucx-cpu` | `osu_bw --validation` | 1 CPU node, 2 ranks | 19,570.71 MB/s at 2 MiB |
+| `bench-openmpi-ofi-ucx-cpu` | `osu_alltoall --validation` | 2 CPU nodes, 8 ranks | 8.88 us at 4 B |
+
+GPU results:
+
+| Image | Test | Placement | Buffer | Best result |
+| --- | --- | --- | --- | --- |
+| `bench-openmpi-gpu` | `osu_bw --validation` | 2 GPU nodes | host | 24,147.06 MB/s at 4 MiB |
+| `bench-openmpi-gpu` | `osu_bw --validation` | 1 GPU node, 2 ranks | host | 23,501.83 MB/s at 4 MiB |
+| `bench-openmpi-gpu` | `osu_bw --validation -d cuda` | 2 GPU nodes | CUDA | 23,987.99 MB/s at 2 MiB |
+| `bench-openmpi-gpu` | `osu_bw --validation -d cuda` | 1 GPU node, 2 ranks | CUDA | 23,698.49 MB/s at 4 MiB |
+| `bench-openmpi-gpu` | `osu_alltoall --validation` | 2 GPU nodes, 8 ranks | host | 32.17 us at 2 B |
+| `bench-openmpi-gpu` | `osu_alltoall --validation -d cuda` | 2 GPU nodes, 8 ranks | CUDA | 47.87 us at 256 B |
+| `bench-openmpi-ofi-ucx-gpu` | `osu_bw --validation` | 2 GPU nodes | host | 24,256.57 MB/s at 4 MiB |
+| `bench-openmpi-ofi-ucx-gpu` | `osu_bw --validation` | 1 GPU node, 2 ranks | host | 24,228.05 MB/s at 4 MiB |
+| `bench-openmpi-ofi-ucx-gpu` | `osu_bw --validation -d cuda` | 2 GPU nodes | CUDA | 23,392.70 MB/s at 2 MiB |
+| `bench-openmpi-ofi-ucx-gpu` | `osu_bw --validation -d cuda` | 1 GPU node, 2 ranks | CUDA | 23,713.81 MB/s at 4 MiB |
+| `bench-openmpi-ofi-ucx-gpu` | `osu_alltoall --validation` | 2 GPU nodes, 8 ranks | host | 32.55 us at 32 B |
+| `bench-openmpi-ofi-ucx-gpu` | `osu_alltoall --validation -d cuda` | 2 GPU nodes, 8 ranks | CUDA | 48.34 us at 256 B |
+
+Run the OpenMPI benchmark jobs:
+
+```bash
+MPI_IMPL=openmpi sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-gpu.sbatch
+MPI_IMPL=openmpi-ofi-ucx sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-gpu.sbatch
+```

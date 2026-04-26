@@ -146,7 +146,9 @@ PMIX_MCA_psec=native
 
 ## Documentation
 
-Dedicated notes are in `docs/`:
+User-facing Perlmutter container instructions are in [`user-docs/`](user-docs/). These pages focus on choosing and running one published image with `podman-hpc`, and include per-library benchmark summaries.
+
+Implementation notes are in `docs/`:
 
 | Topic | Page |
 | --- | --- |
