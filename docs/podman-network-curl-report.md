@@ -103,12 +103,16 @@ Each row used one batch of eight concurrent 100 MiB downloads.
 
 ## Interpretation
 
-The newer `pasta 2026_01_20.386b5f5` helper improved single-curl throughput for both Podman backends.
+The site default path uses site Podman 5.3.2 with site `pasta 2024_11_27.c0fbc7e-101445`.
+In the single-curl test, that path measured 462.7 MB/s with default networking and 523.4 MB/s with explicit `--network=pasta`.
+Replacing only the helper with scratch `pasta 2026_01_20.386b5f5` raised the site Podman explicit-pasta result to 709.7 MB/s.
 
-The newer helper also improved the 8-way parallel result for site Podman 5.3.2.
-For scratch Podman 5.8.2, the 8-way parallel numbers were close between the site and scratch pasta helpers in this short run.
+The newer `pasta 2026_01_20.386b5f5` helper improved single-curl throughput for both Podman backends: site Podman improved from 472.2 MB/s to 709.7 MB/s in the helper-isolation test, and scratch Podman 5.8.2 improved from 488.7 MB/s to 729.0 MB/s.
 
-For the full network-mode comparison, `--network=host` was much faster than the rootless user-mode networking paths for the 8-way parallel curl workload.
-For single-curl throughput, `--net slirp4netns` and `--network=host` were both close to direct host curl and faster than the site default.
+For 8-way parallel curl, the newer helper improved site Podman from 830.5 MB/s to 955.2 MB/s.
+For scratch Podman 5.8.2, the 8-way parallel numbers were close in this short run: 897.9 MB/s with site pasta and 934.5 MB/s with scratch pasta.
+
+Across the full network-mode comparison, `--network=host` was much faster than the rootless user-mode networking paths for the 8-way parallel curl workload.
+For single-curl throughput, `--net slirp4netns`, `--network=host`, and the newer scratch pasta helper were all close to direct host curl and faster than the site default.
 
 Use `--network=host` or `--net slirp4netns` as separate comparisons when the goal is maximum download throughput rather than isolating pasta helper behavior.
