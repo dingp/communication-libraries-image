@@ -137,7 +137,17 @@ run_case() {
     exit "${status}"
   } 2>&1 | tee "${outfile}"
   status=${PIPESTATUS[0]}
+  return "${status}"
+}
+
+run_required_case() {
+  local status
+
+  set +e
+  run_case "$@"
+  status=$?
   set -e
+
   return "${status}"
 }
 
@@ -157,9 +167,7 @@ run_optional_case() {
 run_cuda_buffer=0
 case "${RUN_CUDA_BUFFER}" in
   auto)
-    if [[ "${MPI_IMPL}" != "mpich" ]]; then
-      run_cuda_buffer=1
-    fi
+    run_cuda_buffer=1
     ;;
   1|true|yes)
     run_cuda_buffer=1
@@ -177,21 +185,21 @@ echo "IMAGE=${IMAGE}"
 echo "RESULT_DIR=${RESULT_DIR}"
 echo "RUN_CUDA_BUFFER=${RUN_CUDA_BUFFER}"
 
-run_case "${MPI_IMPL}-gpu-osu-bw-intra-host" 1 2 2 cxi "./pt2pt/osu_bw --validation"
-run_case "${MPI_IMPL}-gpu-osu-bw-inter-host" 2 2 1 cxi "./pt2pt/osu_bw --validation"
+run_required_case "${MPI_IMPL}-gpu-osu-bw-intra-host" 1 2 2 cxi "./pt2pt/osu_bw --validation"
+run_required_case "${MPI_IMPL}-gpu-osu-bw-inter-host" 2 2 1 cxi "./pt2pt/osu_bw --validation"
 
 if [[ "${run_cuda_buffer}" == "1" ]]; then
-  run_case "${MPI_IMPL}-gpu-osu-bw-intra-device" 1 2 2 cxi "./pt2pt/osu_bw --validation D D"
-  run_case "${MPI_IMPL}-gpu-osu-bw-inter-device" 2 2 1 cxi "./pt2pt/osu_bw --validation D D"
+  run_required_case "${MPI_IMPL}-gpu-osu-bw-intra-device" 1 2 2 cxi "./pt2pt/osu_bw --validation -d cuda"
+  run_required_case "${MPI_IMPL}-gpu-osu-bw-inter-device" 2 2 1 cxi "./pt2pt/osu_bw --validation -d cuda"
 else
   echo "Skipping CUDA-buffer OSU bandwidth cases for MPI_IMPL=${MPI_IMPL}; set RUN_CUDA_BUFFER=1 to enable."
 fi
 
 if [[ "${MPI_IMPL}" == openmpi* ]]; then
-  run_case "${MPI_IMPL}-gpu-osu-alltoall-host" 2 8 4 cxi "./collective/osu_alltoall --validation"
+  run_required_case "${MPI_IMPL}-gpu-osu-alltoall-host" 2 8 4 cxi "./collective/osu_alltoall --validation"
 
   if [[ "${run_cuda_buffer}" == "1" ]]; then
-    run_case "${MPI_IMPL}-gpu-osu-alltoall-device" 2 8 4 cxi "./collective/osu_alltoall --validation -d cuda"
+    run_required_case "${MPI_IMPL}-gpu-osu-alltoall-device" 2 8 4 cxi "./collective/osu_alltoall --validation -d cuda"
   else
     echo "Skipping CUDA-buffer OSU all-to-all case for MPI_IMPL=${MPI_IMPL}; set RUN_CUDA_BUFFER=1 to enable."
   fi
@@ -199,7 +207,7 @@ if [[ "${MPI_IMPL}" == openmpi* ]]; then
   if [[ "${RUN_DEGRADED}" == "1" ]]; then
     run_optional_case "${MPI_IMPL}-gpu-osu-bw-inter-host-tcp" 2 2 1 tcp "./pt2pt/osu_bw --validation"
     if [[ "${run_cuda_buffer}" == "1" ]]; then
-      run_optional_case "${MPI_IMPL}-gpu-osu-bw-inter-device-tcp" 2 2 1 tcp "./pt2pt/osu_bw --validation D D"
+      run_optional_case "${MPI_IMPL}-gpu-osu-bw-inter-device-tcp" 2 2 1 tcp "./pt2pt/osu_bw --validation -d cuda"
     fi
     run_optional_case "${MPI_IMPL}-gpu-osu-alltoall-host-tcp" 2 8 4 tcp "./collective/osu_alltoall --validation"
     if [[ "${run_cuda_buffer}" == "1" ]]; then

@@ -70,13 +70,13 @@ Run MPICH OSU `osu_bw` host-buffer tests on CPU nodes:
 MPI_IMPL=mpich sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-cpu.sbatch
 ```
 
-Run MPICH OSU `osu_bw` host-buffer tests on GPU nodes:
+Run MPICH OSU `osu_bw` host- and CUDA-buffer tests on GPU nodes:
 
 ```bash
 MPI_IMPL=mpich sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-gpu.sbatch
 ```
 
-The MPICH GPU script skips CUDA-buffer OSU cases by default because the current containerized MPICH path fails the OSU CUDA-buffer `Waitall` case on Perlmutter. Set `RUN_CUDA_BUFFER=1` when explicitly testing that path.
+The GPU OSU script uses `-d cuda` for point-to-point CUDA-buffer tests. This is required for MPICH on Perlmutter; the older positional `D D` OSU syntax fails in MPICH's `Waitall` path.
 
 Run OpenMPI or OpenMPI+OFI+UCX OSU benchmarks:
 
@@ -86,6 +86,16 @@ MPI_IMPL=openmpi-ofi-ucx sbatch --export=ALL benchmarks/scripts/perlmutter/run-m
 ```
 
 The OpenMPI scripts run the CSCS benchmark types: `osu_bw` inter-node and intra-node, `osu_alltoall` across two nodes, and host plus CUDA-buffer variants on GPU nodes. TCP/no-CXI comparison cases are optional with `RUN_DEGRADED=1`; they are treated as diagnostic comparisons and do not fail the batch job if they fail.
+
+The OpenMPI CPU script also has an experimental LINKx diagnostic:
+
+```bash
+MPI_IMPL=openmpi RUN_LNX=1 sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-cpu.sbatch
+```
+
+This adds an optional intra-node `osu_bw` case with `FI_PROVIDER=lnx`, `FI_LNX_PROV_LINKS=shm+cxi:<cxi device>`, `FI_SHM_USE_XPMEM=1`, and `OMPI_MCA_mtl_ofi_av=table`.
+It is not part of the default benchmark matrix because the current Perlmutter container stack does not produce usable LNX `fi_info` entries for `shm+cxi` with the tested libfabric 2.1.0 or 2.3.1 images.
+This matches the CSCS container examples, where the OpenMPI OSU benchmark results are shown with the CXI provider while LINKx is described as experimental.
 
 Run NCCL `all_reduce_perf` on two GPU nodes:
 

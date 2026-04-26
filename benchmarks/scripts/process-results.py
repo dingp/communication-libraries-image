@@ -222,6 +222,9 @@ def markdown_table(headers: List[str], rows: List[List[str]]) -> List[str]:
 
 
 def detail_rows(section: Section) -> Tuple[List[str], List[List[str]]]:
+    if not section.rows:
+        return ["Field", "Value"], [["Rows parsed", "0"], ["Source", section.source.name]]
+
     if section.suite == "osu":
         first = section.rows[0]
         if "bandwidth_mb_s" in first:

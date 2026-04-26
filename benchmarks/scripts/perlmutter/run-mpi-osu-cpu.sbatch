@@ -24,6 +24,8 @@ WORKDIR="${WORKDIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 RESULT_ROOT="${RESULT_ROOT:-${SCRATCH}/communication-libraries-image/benchmarks/results}"
 RESULT_DIR="${RESULT_DIR:-${RESULT_ROOT}/${SLURM_JOB_ID:-manual}}"
 RUN_DEGRADED="${RUN_DEGRADED:-0}"
+RUN_LNX="${RUN_LNX:-0}"
+FI_SHM_USE_XPMEM="${FI_SHM_USE_XPMEM:-1}"
 
 mkdir -p "${RESULT_DIR}"
 
@@ -46,6 +48,18 @@ done
 for path in /dev/xpmem /var/spool/slurmd /run/munge /run/nscd /etc/libibverbs.d; do
   [[ -e "${path}" ]] && OPTIONAL_MOUNTS+=(-v "${path}:${path}")
 done
+
+if [[ -z "${FI_LNX_PROV_LINKS:-}" ]]; then
+  LNX_LINKS=()
+  for dev in /dev/cxi[0-9]*; do
+    [[ -e "${dev}" ]] && LNX_LINKS+=("shm+cxi:${dev##*/}")
+  done
+  if [[ "${#LNX_LINKS[@]}" -gt 0 ]]; then
+    FI_LNX_PROV_LINKS="$(IFS='|'; echo "${LNX_LINKS[*]}")"
+  else
+    FI_LNX_PROV_LINKS="shm+cxi"
+  fi
+fi
 
 if [[ "${PODMANHPC_PMIX_HELPER:-manual}" == "module" ]]; then
   PMIX_HELPER_ARGS=(--pmix)
@@ -80,13 +94,29 @@ run_case() {
   local cxi_mounts=()
   local status
 
-  if [[ "${provider}" == "cxi" ]]; then
-    provider_env=(-e FI_PROVIDER=cxi)
-    cxi_mounts=("${CXI_MOUNTS[@]}")
-  else
-    provider_env=(-e FI_PROVIDER=tcp)
-    cxi_mounts=()
-  fi
+  case "${provider}" in
+    cxi)
+      provider_env=(-e FI_PROVIDER=cxi)
+      cxi_mounts=("${CXI_MOUNTS[@]}")
+      ;;
+    lnx)
+      provider_env=(
+        -e FI_PROVIDER=lnx
+        -e FI_LNX_PROV_LINKS="${FI_LNX_PROV_LINKS}"
+        -e FI_SHM_USE_XPMEM="${FI_SHM_USE_XPMEM}"
+        -e OMPI_MCA_mtl_ofi_av=table
+      )
+      cxi_mounts=("${CXI_MOUNTS[@]}")
+      ;;
+    tcp)
+      provider_env=(-e FI_PROVIDER=tcp)
+      cxi_mounts=()
+      ;;
+    *)
+      echo "Unsupported provider=${provider}; expected cxi, lnx, or tcp" >&2
+      return 2
+      ;;
+  esac
 
   set +e
   {
@@ -115,7 +145,17 @@ run_case() {
     exit "${status}"
   } 2>&1 | tee "${outfile}"
   status=${PIPESTATUS[0]}
+  return "${status}"
+}
+
+run_required_case() {
+  local status
+
+  set +e
+  run_case "$@"
+  status=$?
   set -e
+
   return "${status}"
 }
 
@@ -134,12 +174,19 @@ run_optional_case() {
 
 echo "IMAGE=${IMAGE}"
 echo "RESULT_DIR=${RESULT_DIR}"
+echo "RUN_LNX=${RUN_LNX}"
+echo "FI_LNX_PROV_LINKS=${FI_LNX_PROV_LINKS}"
+echo "FI_SHM_USE_XPMEM=${FI_SHM_USE_XPMEM}"
 
-run_case "${MPI_IMPL}-cpu-osu-bw-intra-host" 1 2 2 cxi "./pt2pt/osu_bw --validation"
-run_case "${MPI_IMPL}-cpu-osu-bw-inter-host" 2 2 1 cxi "./pt2pt/osu_bw --validation"
+run_required_case "${MPI_IMPL}-cpu-osu-bw-intra-host" 1 2 2 cxi "./pt2pt/osu_bw --validation"
+run_required_case "${MPI_IMPL}-cpu-osu-bw-inter-host" 2 2 1 cxi "./pt2pt/osu_bw --validation"
 
 if [[ "${MPI_IMPL}" == openmpi* ]]; then
-  run_case "${MPI_IMPL}-cpu-osu-alltoall-host" 2 8 4 cxi "./collective/osu_alltoall --validation"
+  run_required_case "${MPI_IMPL}-cpu-osu-alltoall-host" 2 8 4 cxi "./collective/osu_alltoall --validation"
+
+  if [[ "${RUN_LNX}" == "1" ]]; then
+    run_optional_case "${MPI_IMPL}-cpu-osu-bw-intra-host-lnx" 1 2 2 lnx "./pt2pt/osu_bw --validation"
+  fi
 
   if [[ "${RUN_DEGRADED}" == "1" ]]; then
     run_optional_case "${MPI_IMPL}-cpu-osu-bw-inter-host-tcp" 2 2 1 tcp "./pt2pt/osu_bw --validation"
