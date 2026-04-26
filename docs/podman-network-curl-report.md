@@ -69,13 +69,16 @@ These tests used site Podman 5.3.2 and the site `pasta 2024_11_27.c0fbc7e-101445
 
 ### Single Curl
 
-| Mode | Network option | Runs | OK | Avg speed | Avg speed |
-| --- | --- | ---: | ---: | ---: | ---: |
-| Default | none | 3 | 3 | 462.7 MB/s | 441.3 MiB/s |
-| Pasta | `--network=pasta` | 3 | 3 | 523.4 MB/s | 499.1 MiB/s |
-| slirp4netns | `--net slirp4netns` | 3 | 3 | 716.1 MB/s | 682.9 MiB/s |
-| Host network | `--network=host` / `--net=host` | 3 | 3 | 692.8 MB/s | 660.7 MiB/s |
-| Direct host curl | none | 3 | 3 | 655.7 MB/s | 625.4 MiB/s |
+| Mode | Podman backend | Helper | Network option | Runs | OK | Avg speed | Avg speed |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: |
+| Default | Site Podman 5.3.2 | Site `pasta 2024_11_27` | none | 3 | 3 | 462.7 MB/s | 441.3 MiB/s |
+| Pasta | Site Podman 5.3.2 | Site `pasta 2024_11_27` | `--network=pasta` | 3 | 3 | 523.4 MB/s | 499.1 MiB/s |
+| Pasta | Site Podman 5.3.2 | Scratch `pasta 2026_01_20` | `--network=pasta` | 3 | 3 | 709.7 MB/s | 676.8 MiB/s |
+| Pasta | Scratch Podman 5.8.2 | Site `pasta 2024_11_27` | `--network=pasta` | 3 | 3 | 488.7 MB/s | 466.1 MiB/s |
+| Pasta | Scratch Podman 5.8.2 | Scratch `pasta 2026_01_20` | `--network=pasta` | 3 | 3 | 729.0 MB/s | 695.2 MiB/s |
+| slirp4netns | Site Podman 5.3.2 | `/usr/bin/slirp4netns` | `--net slirp4netns` | 3 | 3 | 716.1 MB/s | 682.9 MiB/s |
+| Host network | Site Podman 5.3.2 | none | `--network=host` / `--net=host` | 3 | 3 | 692.8 MB/s | 660.7 MiB/s |
+| Direct host curl | none | none | none | 3 | 3 | 655.7 MB/s | 625.4 MiB/s |
 
 ### Parallel Curl
 
