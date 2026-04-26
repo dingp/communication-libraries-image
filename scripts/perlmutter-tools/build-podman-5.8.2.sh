@@ -14,6 +14,7 @@ GO_TARBALL="${INSTALL_ROOT}/go${GO_VERSION}.linux-amd64.tar.gz"
 GO_URL="https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz"
 PODMAN_REPO="${PODMAN_REPO:-https://github.com/containers/podman.git}"
 APPLY_FORCE_SHIFTING_PATCH="${APPLY_FORCE_SHIFTING_PATCH:-0}"
+APPLY_MAKE_ACCESSIBLE_PATCH="${APPLY_MAKE_ACCESSIBLE_PATCH:-0}"
 
 PODMAN_BUILDTAGS="${PODMAN_BUILDTAGS:-containers_image_openpgp exclude_graphdriver_btrfs exclude_graphdriver_devicemapper systemd}"
 if pkg-config --exists libseccomp 2>/dev/null; then
@@ -103,6 +104,100 @@ PY
   fi
 fi
 
+if [[ "${APPLY_MAKE_ACCESSIBLE_PATCH}" == "1" || "${APPLY_MAKE_ACCESSIBLE_PATCH}" == "yes" || "${APPLY_MAKE_ACCESSIBLE_PATCH}" == "true" ]]; then
+  OCI_COMMON="${SRC_DIR}/libpod/oci_conmon_common.go"
+  if [[ ! -f "${OCI_COMMON}" ]]; then
+    echo "makeAccessible patch expects libpod/oci_conmon_common.go." >&2
+    exit 1
+  fi
+  if ! grep -q 'func (r \*ConmonOCIRuntime) CreateContainer' "${OCI_COMMON}"; then
+    echo "makeAccessible patch could not find ConmonOCIRuntime.CreateContainer." >&2
+    exit 1
+  fi
+  if grep -q 'func makeAccessible(' "${OCI_COMMON}"; then
+    echo "makeAccessible patch is already present."
+  else
+    echo "Applying optional makeAccessible patch."
+    python3 - "${OCI_COMMON}" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+make_accessible = r'''
+// makeAccessible changes the path permission and each parent directory to have --x--x--x.
+func makeAccessible(path string, uid, gid int) error {
+	for ; path != "/"; path = filepath.Dir(path) {
+		st, err := os.Stat(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if int(st.Sys().(*syscall.Stat_t).Uid) == uid && int(st.Sys().(*syscall.Stat_t).Gid) == gid {
+			continue
+		}
+		if st.Mode()&0111 != 0111 {
+			if err := os.Chmod(path, st.Mode()|0111); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+'''
+
+old_create = r'''// CreateContainer creates a container.
+func (r *ConmonOCIRuntime) CreateContainer(ctr *Container, restoreOptions *ContainerCheckpointOptions) (int64, error) {
+	if !hasCurrentUserMapped(ctr) || ctr.config.RootfsMapping != nil {
+		// if we are running a non privileged container, be sure to umount some kernel paths so they are not
+		// bind mounted inside the container at all.
+		hideFiles := !ctr.config.Privileged && !rootless.IsRootless()
+		return r.createRootlessContainer(ctr, restoreOptions, hideFiles)
+	}
+	return r.createOCIContainer(ctr, restoreOptions)
+}
+'''
+
+new_create = r'''// CreateContainer creates a container.
+func (r *ConmonOCIRuntime) CreateContainer(ctr *Container, restoreOptions *ContainerCheckpointOptions) (int64, error) {
+	// Match the Podman 4.7 access-preparation path for rootless runtime files.
+	if err := makeAccessible(ctr.state.RunDir, 0, 0); err != nil {
+		return 0, err
+	}
+
+	currentUserMapped := hasCurrentUserMapped(ctr)
+	if !currentUserMapped {
+		for _, path := range []string{ctr.state.RunDir, ctr.runtime.config.Engine.TmpDir, ctr.config.StaticDir, ctr.state.Mountpoint, ctr.runtime.config.Engine.VolumePath} {
+			if err := makeAccessible(path, ctr.RootUID(), ctr.RootGID()); err != nil {
+				return 0, err
+			}
+		}
+	}
+
+	if !currentUserMapped || ctr.config.RootfsMapping != nil {
+		// if we are running a non privileged container, be sure to umount some kernel paths so they are not
+		// bind mounted inside the container at all.
+		hideFiles := !ctr.config.Privileged && !rootless.IsRootless()
+		return r.createRootlessContainer(ctr, restoreOptions, hideFiles)
+	}
+	return r.createOCIContainer(ctr, restoreOptions)
+}
+'''
+
+if old_create not in text:
+	raise SystemExit("could not find CreateContainer block expected by makeAccessible patch")
+
+text = text.replace("// CreateContainer creates a container.\n", make_accessible + "// CreateContainer creates a container.\n", 1)
+text = text.replace(old_create, new_create, 1)
+path.write_text(text)
+PY
+  fi
+fi
+
 export PATH="${GO_ROOT}/bin:${PATH}"
 export GOCACHE="${INSTALL_ROOT}/gocache"
 export GOPATH="${INSTALL_ROOT}/gopath"
@@ -127,4 +222,8 @@ if [[ "${APPLY_FORCE_SHIFTING_PATCH}" == "1" || "${APPLY_FORCE_SHIFTING_PATCH}" 
   echo "This build includes the optional overlay force-shifting patch."
   echo "Enable that path by exporting:"
   echo "  export _CONTAINERS_FORCE_SHIFTING=1"
+fi
+if [[ "${APPLY_MAKE_ACCESSIBLE_PATCH}" == "1" || "${APPLY_MAKE_ACCESSIBLE_PATCH}" == "yes" || "${APPLY_MAKE_ACCESSIBLE_PATCH}" == "true" ]]; then
+  echo
+  echo "This build includes the optional makeAccessible rootless runtime patch."
 fi

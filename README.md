@@ -262,11 +262,20 @@ export PODMANHPC_PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/po
 export _CONTAINERS_FORCE_SHIFTING=1
 ```
 
-See [`docs/podman-backend.md`](docs/podman-backend.md) for the PMIx `--userns=keep-id` comparison and the Podman 4.7.0, 5.3.2, and 5.8.2 overlay-shifting comparison.
-That page also includes a direct compute-node `podman-hpc run --userns=keep-id` reproducer:
+For direct `podman-hpc run --userns=keep-id` path-access debugging, the helper can also build a Podman 5.8.2 binary with the old rootless runtime `makeAccessible()` path restored:
+
+```bash
+APPLY_MAKE_ACCESSIBLE_PATCH=1 \
+INSTALL_ROOT=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-make-accessible \
+  scripts/perlmutter-tools/build-podman-5.8.2.sh
+```
+
+See [`docs/podman-backend.md`](docs/podman-backend.md) for the PMIx `--userns=keep-id` comparison, direct compute-node reproducer, overlay-shifting comparison, and bind-mount ownership test.
+The direct run and bind-mount wrappers are:
 
 ```bash
 sbatch scripts/perlmutter-tools/test-podman-keepid-run.sbatch
+sbatch scripts/perlmutter-tools/test-podman-keepid-bindmount.sbatch
 ```
 
 For GPU runs, bind the complete host NVIDIA driver library set, not only `libcuda`. The script binds `/usr/lib64/libcuda*`, `/usr/lib64/libnvidia*`, and `/usr/bin/nvidia-smi`; this keeps the driver JIT and NVML libraries matched to the Perlmutter 580.105.08 host driver while the image carries the CUDA 13.2 user-space toolkit.

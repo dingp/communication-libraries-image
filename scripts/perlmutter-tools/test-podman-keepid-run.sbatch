@@ -20,10 +20,14 @@ CASE_COMMAND="${CASE_COMMAND:-uname}"
 CASE_TIMEOUT="${CASE_TIMEOUT:-90}"
 NEW_PODMAN="${NEW_PODMAN:-${SCRATCH}/communication-libraries-image/podman-alt/podman-5.8.2/bin/podman}"
 PATCHED_PODMAN="${PATCHED_PODMAN:-${SCRATCH}/communication-libraries-image/podman-alt/podman-5.8.2-force-shifting/bin/podman}"
+CANDIDATE_PODMAN="${CANDIDATE_PODMAN:-}"
+CANDIDATE_NAME="${CANDIDATE_NAME:-podman-candidate}"
+CANDIDATE_FORCE_SHIFTING="${CANDIDATE_FORCE_SHIFTING:-0}"
 PODMANHPC_LOG_LEVEL="${PODMANHPC_LOG_LEVEL:-fatal}"
 RUN_SYSTEM="${RUN_SYSTEM:-1}"
 RUN_UNPATCHED="${RUN_UNPATCHED:-1}"
 RUN_PATCHED="${RUN_PATCHED:-1}"
+RUN_CANDIDATE="${RUN_CANDIDATE:-0}"
 
 run_case() {
   local name="$1"
@@ -59,11 +63,15 @@ echo "IMAGE=${IMAGE}"
 echo "CASE_COMMAND=${CASE_COMMAND}"
 echo "NEW_PODMAN=${NEW_PODMAN}"
 echo "PATCHED_PODMAN=${PATCHED_PODMAN}"
+echo "CANDIDATE_PODMAN=${CANDIDATE_PODMAN}"
+echo "CANDIDATE_NAME=${CANDIDATE_NAME}"
+echo "CANDIDATE_FORCE_SHIFTING=${CANDIDATE_FORCE_SHIFTING}"
 echo "CASE_TIMEOUT=${CASE_TIMEOUT}"
 echo "PODMANHPC_LOG_LEVEL=${PODMANHPC_LOG_LEVEL}"
 echo "RUN_SYSTEM=${RUN_SYSTEM}"
 echo "RUN_UNPATCHED=${RUN_UNPATCHED}"
 echo "RUN_PATCHED=${RUN_PATCHED}"
+echo "RUN_CANDIDATE=${RUN_CANDIDATE}"
 
 if [[ "${RUN_SYSTEM}" == "1" ]]; then
   run_case system system 0
@@ -82,5 +90,13 @@ if [[ "${RUN_PATCHED}" == "1" ]]; then
     run_case podman-5.8.2-force-shifting "${PATCHED_PODMAN}" 1
   else
     echo "Skipping patched 5.8.2; not executable: ${PATCHED_PODMAN}"
+  fi
+fi
+
+if [[ "${RUN_CANDIDATE}" == "1" ]]; then
+  if [[ -x "${CANDIDATE_PODMAN}" ]]; then
+    run_case "${CANDIDATE_NAME}" "${CANDIDATE_PODMAN}" "${CANDIDATE_FORCE_SHIFTING}"
+  else
+    echo "Skipping candidate; not executable: ${CANDIDATE_PODMAN}"
   fi
 fi

@@ -55,6 +55,26 @@ The default build is unpatched.
 The optional patch adds `_CONTAINERS_FORCE_SHIFTING` as an override in the overlay driver's `SupportsShifting()` check and logs the resulting `disableShifting` value at debug level.
 It is intended as a diagnostic backend, not as a default runtime requirement for these images.
 
+## Optional MakeAccessible Build
+
+For debugging direct `podman-hpc run --userns=keep-id` failures where the OCI runtime cannot open the mounted root filesystem, the build helper can also apply a local Podman v5.8.2 patch that restores the Podman 4.7-style rootless runtime access-preparation path:
+
+```bash
+APPLY_MAKE_ACCESSIBLE_PATCH=1 \
+INSTALL_ROOT=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-make-accessible \
+  scripts/perlmutter-tools/build-podman-5.8.2.sh
+```
+
+Use the patched binary with:
+
+```bash
+export PODMANHPC_PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-make-accessible/bin/podman
+```
+
+The patch calls `makeAccessible()` on the container run directory before creating the OCI container.
+If Podman decides the current user is not mapped in the container user namespace, it also applies the same parent-directory execute-bit preparation to the runtime tmp directory, static directory, mounted rootfs, and volume path.
+This is a diagnostic build for checking the runtime path-access hypothesis; it is not a recommendation to run arbitrary container UIDs against writable host bind mounts.
+
 ## PMIx Keep-Id Test
 
 The comparison script below runs a two-node `mpi4py` test through `podman-hpc shared-run`:
@@ -121,12 +141,20 @@ The script compares:
 - site default Podman
 - scratch-built Podman 5.8.2
 - scratch-built Podman 5.8.2 with the optional `_CONTAINERS_FORCE_SHIFTING` patch
+- an arbitrary candidate Podman backend, if `RUN_CANDIDATE=1` and `CANDIDATE_PODMAN=...` are passed
 
 The patched backend is enabled with:
 
 ```bash
 export PODMANHPC_PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-force-shifting/bin/podman
 export _CONTAINERS_FORCE_SHIFTING=1
+```
+
+The `makeAccessible()` backend can be tested without editing the script:
+
+```bash
+sbatch --export=ALL,RUN_SYSTEM=0,RUN_UNPATCHED=0,RUN_PATCHED=0,RUN_CANDIDATE=1,CANDIDATE_NAME=podman-5.8.2-make-accessible,CANDIDATE_PODMAN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-make-accessible/bin/podman \
+  scripts/perlmutter-tools/test-podman-keepid-run.sbatch
 ```
 
 On 2026-04-26, this direct compute-node `podman-hpc run` test failed for all three backends with:
@@ -145,15 +173,53 @@ That means the optional patch was active and changed the v5.8.2 overlay shifting
 For this reproducer, the failure happens after the overlay mount is created, when the OCI runtime opens the mounted root filesystem.
 The result points away from the v5.8.2 `SupportsShifting(uidmap, gidmap)` contiguous-map guard as the sole cause.
 
+A follow-up scratch build with `APPLY_MAKE_ACCESSIBLE_PATCH=1` succeeded for the same direct compute-node command:
+
+```text
+podman-hpc run --rm --privileged --userns=keep-id ubuntu:latest uname
+```
+
+The container printed `Linux` and exited with status 0.
+That result points to rootfs path accessibility between Podman, conmon, and `crun` as the immediate failure mode for this reproducer.
+The overlay force-shifting patch changed the shifting decision but did not fix the `crun open .../merged` failure; the access-preparation patch did.
+
+## Bind-Mount Ownership Test
+
+The repository carries a second compute-node wrapper that writes files into a host bind mount under `--userns=keep-id` and records both inside-container and host-side ownership:
+
+```bash
+sbatch scripts/perlmutter-tools/test-podman-keepid-bindmount.sbatch
+```
+
+Pass a candidate backend on the `sbatch` command line rather than editing local paths into the file:
+
+```bash
+sbatch --export=ALL,PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-make-accessible/bin/podman \
+  scripts/perlmutter-tools/test-podman-keepid-bindmount.sbatch
+```
+
+With the `makeAccessible()` Podman 5.8.2 build, the default `keep-id` user case succeeded and files created under the host bind mount were owned by the same host user and group as the submitting user.
+
+The explicit root case also ran:
+
+```text
+podman-hpc run --rm --privileged --userns=keep-id --user 0:0 -v <host-dir>:/work:rw ubuntu:latest ...
+```
+
+Inside the container, the new files appeared as `root:root`.
+On the host, those same files were owned by a high subordinate UID/GID with no local user or group name.
+That confirms a real bind-mount ownership hazard: avoid using `--user 0:0` or arbitrary container UID/GID values with writable host bind mounts under `--userns=keep-id` unless the resulting host ownership is understood and acceptable.
+For normal end-user workflows that use the default `keep-id` user, the bind-mount write test preserved the submitting user's host UID/GID.
+
 ## Overlay Shifting Comparison
 
 The force-shifting patch does not apply the same way across the tested Podman versions because the vendored storage driver changed.
 
 | Podman version | Storage package | Overlay shifting code | Patch status |
 | --- | --- | --- | --- |
-| 4.7.0-dev test binary, compared with upstream v4.7.0 | `github.com/containers/storage v1.50.2` | `SupportsShifting()` has no UID/GID map arguments. If an overlay mount program is configured, it reports shifting support without checking whether the active maps are contiguous. Binary disassembly showed no call from this function to `idtools.IsContiguous`. | No `_CONTAINERS_FORCE_SHIFTING` string was present. The v5.8.2-style patch does not apply verbatim. |
-| Site 5.3.2 package `podman-5.3.2-103498`, checked against the installed binary and upstream v5.3.2 | `github.com/containers/storage v1.56.1` | Same older shape: `SupportsShifting()` has no UID/GID map arguments and no contiguous-map check in this function. Binary disassembly of `/usr/bin/podman` showed this function calls `os.Getenv` and `supportsIDmappedMounts`, but not `idtools.IsContiguous`. | No `_CONTAINERS_FORCE_SHIFTING` string was present. The v5.8.2-style patch does not apply verbatim. |
-| Local upstream 5.8.2 build | `go.podman.io/storage v1.62.0` | `SupportsShifting(uidmap, gidmap)` checks `idtools.IsContiguous(uidmap)` and `idtools.IsContiguous(gidmap)` when an overlay mount program is used. | No `_CONTAINERS_FORCE_SHIFTING` upstream. The optional patch in this repo applies cleanly to the vendored v5.8.2 file. |
+| 4.7.0-dev test binary, compared with upstream v4.7.0 | `github.com/containers/storage v1.50.2` | The overlay driver's `SupportsShifting()` has no UID/GID map arguments. The map-contiguity gate is one layer higher in `store.canUseShifting(uidmap, gidmap)`, which checks `idtools.IsContiguous()` before allowing mount-time shifting. | No `_CONTAINERS_FORCE_SHIFTING` string was present. The v5.8.2-style overlay-driver patch does not apply verbatim; an older-storage patch would need to target `store.canUseShifting()`. |
+| Site 5.3.2 package `podman-5.3.2-103498`, checked against the installed binary and upstream v5.3.2 | `github.com/containers/storage v1.56.1` | Same older shape: `SupportsShifting()` has no UID/GID map arguments, while `store.canUseShifting(uidmap, gidmap)` performs the contiguity check. Binary disassembly of `/usr/bin/podman` showed no map-aware `SupportsShifting()` implementation. | No `_CONTAINERS_FORCE_SHIFTING` string was present. The v5.8.2-style overlay-driver patch does not apply verbatim. |
+| Local upstream 5.8.2 build | `go.podman.io/storage v1.62.0` | `SupportsShifting(uidmap, gidmap)` checks `idtools.IsContiguous(uidmap)` and `idtools.IsContiguous(gidmap)` when an overlay mount program is used; `store.canUseShifting()` delegates to that driver method. | No `_CONTAINERS_FORCE_SHIFTING` upstream. The optional patch in this repo applies cleanly to the vendored v5.8.2 overlay driver. |
 
 For the local 5.8.2 backend on Perlmutter, `podman info` showed overlay storage on GPFS, non-native overlay diff, and an already configured overlay mount program.
 The active ID maps used by rootless Podman had two ranges: a one-ID real user/group mapping followed by a separate subordinate range.
@@ -167,6 +233,6 @@ One subtle point: `podman info` can still print `Supports shifting: true`.
 In v5.8.2 that status line calls `SupportsShifting(nil, nil)`, and nil maps are trivially contiguous.
 It does not prove that the actual `--userns=keep-id` mount path will keep shifting enabled for the non-contiguous maps passed later.
 
-The same non-contiguous-map explanation does not match the checked site Podman 5.3.2 binary.
-The issue may still have started with the 5.3.2 site upgrade, but the checked code path does not contain the newer v5.8.2-style contiguous-map guard that the `_CONTAINERS_FORCE_SHIFTING` patch bypasses.
-For 5.3.2, the next useful debug build would log `disableShifting` in `get()` and inspect the bind-mount ownership path directly, rather than adding `_CONTAINERS_FORCE_SHIFTING` to `SupportsShifting()`.
+For 4.7.0 and 5.3.2, the same map-contiguity logic exists in `store.canUseShifting()` rather than the overlay driver's `SupportsShifting()` method.
+That means the non-contiguous-map behavior is not unique to 5.8.2.
+For the direct compute-node `crun open .../merged` failure, the successful `makeAccessible()` build is the stronger signal: the immediate issue is path accessibility to the mounted rootfs, while overlay shifting is a separate ownership and performance concern.
