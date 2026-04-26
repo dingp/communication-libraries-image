@@ -6,7 +6,6 @@ Image targets:
 
 - `openmpi-ofi-ucx-cpu`
 - `openmpi-ofi-ucx-gpu`
-- GPU targets layered on `openmpi-ofi-ucx-gpu`
 
 CPU UCX build:
 

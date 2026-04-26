@@ -376,7 +376,7 @@ ENV OMPI_MCA_pml=cm
 ENV OMPI_MCA_mtl=ofi
 ENV PMIX_MCA_psec=native
 
-FROM openmpi-ofi-ucx-gpu AS nccl-gpu
+FROM libfabric-gpu AS nccl-gpu
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libnccl2 libnccl-dev \
@@ -386,7 +386,7 @@ ARG AWS_OFI_NCCL_VERSION=1.17.2
 RUN wget -q https://github.com/aws/aws-ofi-nccl/releases/download/v${AWS_OFI_NCCL_VERSION}/aws-ofi-nccl-${AWS_OFI_NCCL_VERSION}.tar.gz \
     && tar xf aws-ofi-nccl-${AWS_OFI_NCCL_VERSION}.tar.gz \
     && cd aws-ofi-nccl-${AWS_OFI_NCCL_VERSION} \
-    && ./configure --prefix=/usr --with-cuda=/usr/local/cuda --with-libfabric=/usr --with-hwloc=/usr --disable-tests \
+    && ./configure --prefix=/usr --with-cuda=/usr/local/cuda --disable-tests \
     && make -j$(nproc) \
     && make install \
     && ldconfig \
@@ -397,7 +397,7 @@ ARG NCCL_TESTS_VERSION=2.17.1
 RUN wget -q -O nccl-tests-${NCCL_TESTS_VERSION}.tar.gz https://github.com/NVIDIA/nccl-tests/archive/refs/tags/v${NCCL_TESTS_VERSION}.tar.gz \
     && tar xf nccl-tests-${NCCL_TESTS_VERSION}.tar.gz \
     && cd nccl-tests-${NCCL_TESTS_VERSION} \
-    && MPI=1 make -j$(nproc) \
+    && MPI=0 make -j$(nproc) \
     && mkdir -p /opt/nccl-tests \
     && cp -a build /opt/nccl-tests/ \
     && cd .. \
@@ -413,46 +413,39 @@ ENV FI_MR_CACHE_MONITOR=userfaultfd
 
 FROM nccl-gpu AS nvshmem-gpu
 
+ARG NVSHMEM_PACKAGE_VERSION=3.6.5-1
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends file \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends \
+        libpciaccess0 \
+        libnvshmem3-cuda-13=${NVSHMEM_PACKAGE_VERSION} \
+        libnvshmem3-dev-cuda-13=${NVSHMEM_PACKAGE_VERSION} \
+        libnvshmem3-static-cuda-13=${NVSHMEM_PACKAGE_VERSION} \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /opt/nvshmem /opt/nvshmem-tests \
+    && ln -s /usr/bin/nvshmem_13 /opt/nvshmem/bin \
+    && ln -s /usr/include/nvshmem_13 /opt/nvshmem/include \
+    && ln -s /usr/lib/x86_64-linux-gnu/nvshmem/13 /opt/nvshmem/lib \
+    && rm -f /opt/nvshmem/lib/nvshmem_bootstrap_mpi.so* \
+       /opt/nvshmem/lib/nvshmem_bootstrap_shmem.so* \
+       /opt/nvshmem/lib/nvshmem_transport_ibdevx.so* \
+       /opt/nvshmem/lib/nvshmem_transport_ibgda.so* \
+       /opt/nvshmem/lib/nvshmem_transport_ibrc.so* \
+       /opt/nvshmem/lib/nvshmem_transport_ucx.so*
 
-ARG NVSHMEM_VERSION=3.6.5
-RUN wget -q https://developer.download.nvidia.com/compute/redist/nvshmem/${NVSHMEM_VERSION}/source/nvshmem_src_cuda13-all-all-${NVSHMEM_VERSION}.tar.gz \
-    && tar xf nvshmem_src_cuda13-all-all-${NVSHMEM_VERSION}.tar.gz \
-    && cd nvshmem_src \
-    && NVSHMEM_BUILD_EXAMPLES=0 \
-       NVSHMEM_BUILD_TESTS=1 \
-       NVSHMEM_DEFAULT_PMI2=0 \
-       NVSHMEM_DEFAULT_PMIX=1 \
-       NVSHMEM_IBDEVX_SUPPORT=0 \
-       NVSHMEM_IBGDA_SUPPORT=0 \
-       NVSHMEM_IBGDA_SUPPORT_GPUMEM_ONLY=0 \
-       NVSHMEM_IBRC_SUPPORT=0 \
-       NVSHMEM_LIBFABRIC_SUPPORT=1 \
-       NVSHMEM_MPI_IS_OMPI=1 \
-       NVSHMEM_MPI_SUPPORT=1 \
-       NVSHMEM_PMIX_SUPPORT=1 \
-       NVSHMEM_SHMEM_SUPPORT=1 \
-       NVSHMEM_UCX_SUPPORT=0 \
-       NVSHMEM_USE_GDRCOPY=1 \
-       NVSHMEM_USE_NCCL=1 \
-       LIBFABRIC_HOME=/usr \
-       MPI_HOME=/usr \
-       PMIX_HOME=/opt/pmix \
-       NCCL_HOME=/usr \
-       GDRCOPY_HOME=/usr/local \
-       NVSHMEM_PREFIX=/opt/nvshmem \
-       cmake . \
-    && make -j$(nproc) \
-    && make install \
+COPY tests/nvshmem_hello.cu /tmp/nvshmem_hello.cu
+RUN nvcc -rdc=true -ccbin g++ -gencode=arch=compute_80,code=sm_80 \
+       -I/opt/nvshmem/include /tmp/nvshmem_hello.cu \
+       -o /opt/nvshmem-tests/nvshmem_hello \
+       -L/opt/nvshmem/lib -lnvshmem_host -lnvshmem_device \
+       -Xlinker -rpath -Xlinker /opt/nvshmem/lib \
     && ldconfig \
-    && cd .. \
-    && rm -rf nvshmem_src nvshmem_src_cuda13-all-all-${NVSHMEM_VERSION}.tar.gz
+    && rm -f /tmp/nvshmem_hello.cu
 
 ENV NVSHMEM_HOME=/opt/nvshmem
 ENV PATH=/opt/nvshmem/bin:${PATH}
 ENV LD_LIBRARY_PATH=/opt/nvshmem/lib:${LD_LIBRARY_PATH}
+ENV NVSHMEM_BOOTSTRAP=PMI
+ENV NVSHMEM_BOOTSTRAP_PMI=PMIX
 ENV NVSHMEM_REMOTE_TRANSPORT=libfabric
 ENV NVSHMEM_LIBFABRIC_PROVIDER=cxi
 ENV NVSHMEM_DISABLE_CUDA_VMM=1

@@ -18,8 +18,8 @@ Public-source targets in `container/Containerfile`:
 | `openmpi-gpu` | GPU | `openmpi-cpu` equivalent with CUDA-aware Open MPI build |
 | `openmpi-ofi-ucx-cpu` | CPU | `openmpi-cpu` plus UCX and OpenSHMEM enabled |
 | `openmpi-ofi-ucx-gpu` | GPU | CUDA-aware Open MPI with OFI, UCX, OpenSHMEM, and external PMIx |
-| `nccl-gpu` | GPU | `openmpi-ofi-ucx-gpu`, NCCL, AWS OFI NCCL plugin, and NCCL tests |
-| `nvshmem-gpu` | GPU | `openmpi-ofi-ucx-gpu`, NCCL, and NVSHMEM with libfabric/PMIx support |
+| `nccl-gpu` | GPU | `libfabric-gpu`, NCCL, AWS OFI NCCL plugin, and single-process NCCL tests built without MPI |
+| `nvshmem-gpu` | GPU | `nccl-gpu` plus CUDA 13 NVSHMEM packages, PMIx/libfabric runtime settings, and an NVSHMEM hello test |
 
 The Cray MPICH example is in `container/cray-mpich-cpe.Containerfile`. It is intentionally separate because HPE Cray MPICH is delivered through HPE CPE package repositories or site mirrors, not public source tarballs.
 
@@ -107,6 +107,10 @@ NVSHMEM
   +-- CUDA/GDRCopy for GPU memory paths
 ```
 
+The NCCL image is intentionally not an MPI image. It builds `nccl-tests` with `MPI=0`, which makes the bundled tests useful for single-process GPU smoke tests. Multi-rank NCCL validation should be driven by application launchers or Slurm wrapper scripts that explicitly choose the rank layout, GPU binding, and cross-node topology.
+
+The NVSHMEM image also avoids an OpenMPI base. It uses NVIDIA's CUDA 13 NVSHMEM packages, sets PMIx as the Slurm bootstrap path, keeps libfabric/CXI as the remote transport, and removes packaged MPI/OpenSHMEM/UCX/IB plugins that are not part of the Perlmutter Slingshot path.
+
 UCX is present in the combined OpenMPI images for OpenSHMEM and portability testing. The default Perlmutter MPI path still selects OFI/CXI with:
 
 ```bash
@@ -168,6 +172,8 @@ scripts/run-perlmutter.sh gpu openmpi-ofi-ucx
 scripts/run-perlmutter.sh gpu nccl
 scripts/run-perlmutter.sh gpu nvshmem
 ```
+
+The default `gpu nccl` run uses one node and one task because the bundled `nccl-tests` binary is built without MPI. Set `NODES`, `TASKS_PER_NODE`, and pass a custom command when using an application-level or Slurm-managed distributed NCCL test.
 
 The run script currently passes the PMIx and CXI runtime environment explicitly. Once NERSC/podman-hpc#152 is deployed, set `PODMANHPC_PMIX_HELPER=module` to use the `podman-hpc --pmix` helper instead of the manual PMIx plumbing:
 

@@ -38,13 +38,17 @@ fi
 case "${mode}" in
   cpu)
     suffix=cpu
-    sbatch_extra=(--nodes="${NODES:-2}" --ntasks-per-node="${TASKS_PER_NODE:-8}" --qos="${QOS:-debug}" --constraint=cpu)
-    srun_extra=(--mpi=pmix --ntasks-per-node="${TASKS_PER_NODE:-8}")
+    default_nodes=2
+    default_tasks_per_node=8
+    mode_sbatch_extra=(--qos="${QOS:-debug}" --constraint=cpu)
+    mode_srun_extra=()
     ;;
   gpu)
     suffix=gpu
-    sbatch_extra=(--nodes="${NODES:-2}" --ntasks-per-node="${TASKS_PER_NODE:-4}" --gpus-per-task=1 --qos="${QOS:-debug}" --constraint=gpu)
-    srun_extra=(--mpi=pmix --ntasks-per-node="${TASKS_PER_NODE:-4}" --gpus-per-task=1)
+    default_nodes=2
+    default_tasks_per_node=4
+    mode_sbatch_extra=(--gpus-per-task=1 --qos="${QOS:-debug}" --constraint=gpu)
+    mode_srun_extra=(--gpus-per-task=1)
     ;;
   *)
     echo "Unsupported mode: ${mode}" >&2
@@ -77,12 +81,14 @@ case "${stack}" in
   nccl)
     [[ "${mode}" == "gpu" ]] || { echo "NCCL is GPU-only in this repo" >&2; exit 2; }
     default_target="nccl-gpu"
+    default_nodes=1
+    default_tasks_per_node=1
     default_command=(/opt/nccl-tests/build/all_reduce_perf -b 8 -e 128M -f 2 -g 1)
     ;;
   nvshmem)
     [[ "${mode}" == "gpu" ]] || { echo "NVSHMEM is GPU-only in this repo" >&2; exit 2; }
     default_target="nvshmem-gpu"
-    default_command=(/opt/nvshmem/bin/perftest/device/coll/alltoall_latency)
+    default_command=(/opt/nvshmem-tests/nvshmem_hello)
     ;;
   *)
     echo "Unsupported stack: ${stack}" >&2
@@ -96,6 +102,11 @@ app_command=("$@")
 if [[ ${#app_command[@]} -eq 0 ]]; then
   app_command=("${default_command[@]}")
 fi
+
+nodes="${NODES:-${default_nodes}}"
+tasks_per_node="${TASKS_PER_NODE:-${default_tasks_per_node}}"
+sbatch_extra=(--nodes="${nodes}" --ntasks-per-node="${tasks_per_node}" "${mode_sbatch_extra[@]}")
+srun_extra=(--mpi=pmix --ntasks-per-node="${tasks_per_node}" "${mode_srun_extra[@]}")
 
 workdir="$PWD"
 account="${SLURM_ACCOUNT:-nstaff}"
@@ -137,6 +148,7 @@ done
 if [[ "${mode}" == "gpu" ]]; then
   container_args+=(
     -e NVIDIA_VISIBLE_DEVICES=all
+    -e CUDA_VISIBLE_DEVICES
     -e LD_LIBRARY_PATH=/opt/nvshmem/lib:/opt/pmix/lib:/usr/local/lib:/usr/lib:/usr/lib64:/usr/lib64/nvidia:/usr/local/cuda/compat:/usr/local/cuda/lib64
     -e FI_CXI_DISABLE_HOST_REGISTER=1
     -e NCCL_NET="AWS Libfabric"
@@ -144,6 +156,11 @@ if [[ "${mode}" == "gpu" ]]; then
     -e NCCL_SOCKET_IFNAME=hsn
     -e NCCL_NET_GDR_LEVEL=PHB
     -e NCCL_NCHANNELS_PER_NET_PEER=4
+    -e NVSHMEM_BOOTSTRAP=PMI
+    -e NVSHMEM_BOOTSTRAP_PMI=PMIX
+    -e NVSHMEM_REMOTE_TRANSPORT=libfabric
+    -e NVSHMEM_LIBFABRIC_PROVIDER=cxi
+    -e NVSHMEM_DISABLE_CUDA_VMM=1
   )
   for dev in /dev/nvidia*; do
     container_args+=(-v "${dev}:${dev}")
