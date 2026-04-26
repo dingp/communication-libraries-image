@@ -263,6 +263,11 @@ export _CONTAINERS_FORCE_SHIFTING=1
 ```
 
 See [`docs/podman-backend.md`](docs/podman-backend.md) for the PMIx `--userns=keep-id` comparison and the Podman 4.7.0, 5.3.2, and 5.8.2 overlay-shifting comparison.
+That page also includes a direct compute-node `podman-hpc run --userns=keep-id` reproducer:
+
+```bash
+sbatch scripts/perlmutter-tools/test-podman-keepid-run.sbatch
+```
 
 For GPU runs, bind the complete host NVIDIA driver library set, not only `libcuda`. The script binds `/usr/lib64/libcuda*`, `/usr/lib64/libnvidia*`, and `/usr/bin/nvidia-smi`; this keeps the driver JIT and NVML libraries matched to the Perlmutter 580.105.08 host driver while the image carries the CUDA 13.2 user-space toolkit.
 

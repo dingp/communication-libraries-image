@@ -101,6 +101,50 @@ The same timeout-protected rerun also completed once with site Podman 5.3.2 and 
 This means the focused reproducer did not show a deterministic `--userns=keep-id` failure in site Podman 5.3.2.
 It did confirm that Podman 5.8.2 works with `podman-hpc shared-run`, Slurm PMIx, and `--userns=keep-id` in this two-node MPI test.
 
+## Compute-Node Run Keep-Id Test
+
+The simpler failing reproducer is a direct `podman-hpc run` on a compute node, without `srun` and without `-it`:
+
+```bash
+podman-hpc run --rm --privileged --userns=keep-id ubuntu:latest uname
+```
+
+The repository carries a batch wrapper for this exact shape:
+
+```bash
+sbatch scripts/perlmutter-tools/test-podman-keepid-run.sbatch
+```
+
+Pass allocation details on the `sbatch` command line or with your site defaults rather than editing account names into the file.
+The script compares:
+
+- site default Podman
+- scratch-built Podman 5.8.2
+- scratch-built Podman 5.8.2 with the optional `_CONTAINERS_FORCE_SHIFTING` patch
+
+The patched backend is enabled with:
+
+```bash
+export PODMANHPC_PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-force-shifting/bin/podman
+export _CONTAINERS_FORCE_SHIFTING=1
+```
+
+On 2026-04-26, this direct compute-node `podman-hpc run` test failed for all three backends with:
+
+```text
+Error: crun: open `/tmp/<uid>_hpc/storage/overlay/<layer>/merged`: Permission denied: OCI permission denied
+```
+
+A debug rerun of the patched 5.8.2 backend showed:
+
+```text
+disableShifting: false
+```
+
+That means the optional patch was active and changed the v5.8.2 overlay shifting decision, but it did not fix this `crun` failure.
+For this reproducer, the failure happens after the overlay mount is created, when the OCI runtime opens the mounted root filesystem.
+The result points away from the v5.8.2 `SupportsShifting(uidmap, gidmap)` contiguous-map guard as the sole cause.
+
 ## Overlay Shifting Comparison
 
 The force-shifting patch does not apply the same way across the tested Podman versions because the vendored storage driver changed.
