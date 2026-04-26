@@ -207,7 +207,7 @@ python3 /workspace/tests/test_mpi4py.py
 Each script has default `#SBATCH` settings, a default image tag, and a simple smoke-test command. Copy the script for the image you use, edit the `#SBATCH` lines and `APP_COMMAND`, then submit it with `sbatch`.
 
 | Image tag | Script | Submit example |
-| --- | --- |
+| --- | --- | --- |
 | `libfabric-cpu` | `scripts/perlmutter-images/run-libfabric-cpu.sbatch` | `sbatch scripts/perlmutter-images/run-libfabric-cpu.sbatch` |
 | `libfabric-gpu` | `scripts/perlmutter-images/run-libfabric-gpu.sbatch` | `sbatch scripts/perlmutter-images/run-libfabric-gpu.sbatch` |
 | `mpich-cpu` | `scripts/perlmutter-images/run-mpich-cpu.sbatch` | `sbatch scripts/perlmutter-images/run-mpich-cpu.sbatch` |
