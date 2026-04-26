@@ -24,7 +24,7 @@ Build choices:
 
 ```text
 Base image: libfabric-gpu
-nccl-tests: MPI=0
+nccl-tests: MPI=0, NVCC_GENCODE="-gencode=arch=compute_80,code=sm_80"
 MPI runtime: not included
 ```
 
