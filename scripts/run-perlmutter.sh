@@ -105,7 +105,7 @@ sbatch_extra=(--nodes="${nodes}" --ntasks-per-node="${tasks_per_node}" "${mode_s
 srun_extra=(--mpi=pmix --ntasks-per-node="${tasks_per_node}" "${mode_srun_extra[@]}")
 
 workdir="$PWD"
-account="${SLURM_ACCOUNT:-nstaff}"
+account="${SLURM_ACCOUNT:?Set SLURM_ACCOUNT to your NERSC allocation account}"
 job_name="comm_${stack}_${mode}"
 
 container_args=(

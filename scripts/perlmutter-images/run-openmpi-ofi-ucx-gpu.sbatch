@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=openmpi-ofi-ucx-gpu
-#SBATCH --account=nstaff
+#SBATCH --account=YOUR_NERSC_ACCOUNT
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=4
 #SBATCH --gpus-per-task=1

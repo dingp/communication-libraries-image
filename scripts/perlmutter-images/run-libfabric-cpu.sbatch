@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=libfabric-cpu
-#SBATCH --account=nstaff
+#SBATCH --account=YOUR_NERSC_ACCOUNT
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --constraint=cpu

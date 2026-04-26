@@ -1,6 +1,6 @@
 .git
 .github
+.podman
 *.log
 log_*.out
 tmp
-

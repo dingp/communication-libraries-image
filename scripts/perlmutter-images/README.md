@@ -8,6 +8,8 @@ Submit one directly:
 sbatch run-mpich-gpu.sbatch
 ```
 
+Before submitting, replace `#SBATCH --account=YOUR_NERSC_ACCOUNT` with your allocation account.
+
 Override the application command without editing the script:
 
 ```bash

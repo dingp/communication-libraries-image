@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=mpich-cpu
-#SBATCH --account=nstaff
+#SBATCH --account=YOUR_NERSC_ACCOUNT
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=8
 #SBATCH --constraint=cpu
