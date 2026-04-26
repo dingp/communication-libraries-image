@@ -1,6 +1,6 @@
 # Benchmarks
 
-This directory contains Perlmutter benchmark image recipes, Slurm job scripts, and a result parser modeled on the CSCS communication-library documentation.
+This directory contains Perlmutter benchmark image recipes, Slurm job scripts, and a result parser for standard OSU, NCCL, and NVSHMEM communication benchmarks.
 
 The benchmark image stages use the main repository images as base images and add only benchmark suites. MPI benchmark images build OSU Micro-Benchmarks 7.5.2 by default.
 
@@ -15,7 +15,7 @@ The benchmark image stages use the main repository images as base images and add
 | `bench-nccl-gpu` | `openmpi-ofi-ucx-gpu` | MPI-enabled `nccl-tests` for distributed `all_reduce_perf` |
 | `bench-nvshmem-gpu` | `nvshmem-gpu` | Packaged NVSHMEM performance tests |
 
-The production `nccl-gpu` image remains MPI-free. The benchmark-only `bench-nccl-gpu` target includes OpenMPI because the CSCS-style distributed `all_reduce_perf` test uses MPI for rank wire-up.
+The production `nccl-gpu` image remains MPI-free. The benchmark-only `bench-nccl-gpu` target includes OpenMPI because the distributed `all_reduce_perf` test uses MPI for rank wire-up.
 
 ## Build
 
@@ -85,7 +85,7 @@ MPI_IMPL=openmpi sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-g
 MPI_IMPL=openmpi-ofi-ucx sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-gpu.sbatch
 ```
 
-The OpenMPI scripts run the CSCS benchmark types: `osu_bw` inter-node and intra-node, `osu_alltoall` across two nodes, and host plus CUDA-buffer variants on GPU nodes. TCP/no-CXI comparison cases are optional with `RUN_DEGRADED=1`; they are treated as diagnostic comparisons and do not fail the batch job if they fail.
+The OpenMPI scripts run the standard benchmark types: `osu_bw` inter-node and intra-node, `osu_alltoall` across two nodes, and host plus CUDA-buffer variants on GPU nodes. TCP/no-CXI comparison cases are optional with `RUN_DEGRADED=1`; they are treated as diagnostic comparisons and do not fail the batch job if they fail.
 
 The OpenMPI CPU script also has an experimental LINKx diagnostic:
 
@@ -95,7 +95,7 @@ MPI_IMPL=openmpi RUN_LNX=1 sbatch --export=ALL benchmarks/scripts/perlmutter/run
 
 This adds an optional intra-node `osu_bw` case with `FI_PROVIDER=lnx`, `FI_LNX_PROV_LINKS=shm+cxi:<cxi device>`, `FI_SHM_USE_XPMEM=1`, and `OMPI_MCA_mtl_ofi_av=table`.
 It is not part of the default benchmark matrix because the current Perlmutter container stack does not produce usable LNX `fi_info` entries for `shm+cxi` with the tested libfabric 2.1.0 or 2.3.1 images.
-This matches the CSCS container examples, where the OpenMPI OSU benchmark results are shown with the CXI provider while LINKx is described as experimental.
+The default OpenMPI benchmark path therefore stays on CXI while LINKx remains an opt-in diagnostic.
 
 Run NCCL `all_reduce_perf` on two GPU nodes:
 

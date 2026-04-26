@@ -69,7 +69,7 @@ Use those combined images when you need OpenSHMEM or want an image that also car
 
 ## LINKx Status
 
-The CSCS OpenMPI documentation shows LINKx for uenv OpenMPI with:
+OpenMPI deployments that use LINKx typically set:
 
 ```bash
 PMIX_MCA_psec=native
@@ -82,7 +82,7 @@ OMPI_MCA_mtl_ofi_av=table
 ```
 
 That is the intended OFI layout for combining `shm` intra-node traffic with `cxi` inter-node traffic.
-The same CSCS page's container section still gives the CXI-only container runtime environment, and notes that it does not currently provide instructions to enable LINKx in manually built container images.
+Container recipes often still default to the CXI-only runtime path because LINKx needs site-specific validation with the MPI, libfabric, xpmem, and container runtime stack.
 
 For these Perlmutter containers, LINKx is not part of the default runtime path.
 The tested libfabric 2.1.0 and 2.3.1 container images both list the `lnx` provider, but `fi_info` does not return usable `shm+cxi` provider entries on Perlmutter:

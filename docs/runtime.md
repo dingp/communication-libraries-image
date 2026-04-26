@@ -13,7 +13,7 @@ The multi-node launch path mirrors the existing Perlmutter MPI test wrapper: hos
 
 Keep the GPU driver-library bind broad. Binding only `libcuda` can leave the container to load CUDA compat JIT libraries from the image while using the host driver, which is not the intended Perlmutter path. The run script binds the host driver companion libraries such as `libnvidia-ptxjitcompiler` and `libnvidia-nvvm` through the `/usr/lib64/libnvidia*` glob.
 
-For Open MPI, the default runtime variables match the CSCS communication guidance:
+For Open MPI, the default runtime variables use the OFI/CXI Slingshot path:
 
 ```bash
 PMIX_MCA_psec=native

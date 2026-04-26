@@ -68,7 +68,7 @@ Override those variables when testing direct GPU-memory transport.
 
 ## Benchmark Results
 
-The CSCS-style distributed NCCL benchmark uses a benchmark-only image, `bench-nccl-gpu`, because `all_reduce_perf` uses MPI for rank wire-up in that mode.
+The distributed NCCL benchmark uses a benchmark-only image, `bench-nccl-gpu`, because `all_reduce_perf` uses MPI for rank wire-up in that mode.
 The production `nccl-gpu` image remains MPI-free.
 
 Perlmutter benchmark snapshot from 2026-04-26:

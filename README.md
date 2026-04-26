@@ -249,7 +249,7 @@ For GPU runs, bind the complete host NVIDIA driver library set, not only `libcud
 
 ## Benchmarks
 
-CSCS-style benchmark support is under `benchmarks/`. It includes benchmark image stages based on this repo's images, Perlmutter `sbatch` scripts, and a parser that converts OSU, NCCL, and NVSHMEM logs into a Markdown report.
+Benchmark support is under `benchmarks/`. It includes benchmark image stages based on this repo's images, Perlmutter `sbatch` scripts, and a parser that converts OSU, NCCL, and NVSHMEM logs into a Markdown report.
 
 ```bash
 benchmarks/scripts/build.sh bench-openmpi-ofi-ucx-gpu
