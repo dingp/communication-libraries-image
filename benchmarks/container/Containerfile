@@ -1,6 +1,6 @@
 ARG BASE_IMAGE_REPO=ghcr.io/dingp/communication-libraries-image
 ARG OSU_VERSION=7.5.2
-ARG AWS_OFI_NCCL_VERSION=1.17.2
+ARG AWS_OFI_NCCL_VERSION=1.19.0
 ARG NCCL_TESTS_VERSION=2.17.1
 
 FROM ${BASE_IMAGE_REPO}:mpich-cpu AS bench-mpich-cpu

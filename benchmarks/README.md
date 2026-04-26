@@ -85,6 +85,16 @@ Run NCCL `all_reduce_perf` on two GPU nodes:
 sbatch benchmarks/scripts/perlmutter/run-nccl-all-reduce-gpu.sbatch
 ```
 
+The NCCL benchmark script launches four ranks per GPU node by default and maps local ranks to the four Perlmutter CXI devices by PCI locality:
+
+```text
+local_rank:  0     1     2     3
+GPU:         0     1     2     3
+CXI:         cxi3  cxi2  cxi1  cxi0
+```
+
+The default can be changed with `CXI_DEVICE_MAP`. The script also defaults `NCCL_NET_GDR_LEVEL=LOC` and `NCCL_GDRCOPY_ENABLE=0` because the direct net-GDR path currently returns `FI_ENOSPC` in this containerized Perlmutter setup. Set `NCCL_NET_GDR_LEVEL=PHB NCCL_GDRCOPY_ENABLE=1` before `sbatch` when testing direct GPU-memory transport.
+
 Run NVSHMEM device all-to-all latency on two GPU nodes:
 
 ```bash

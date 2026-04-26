@@ -12,6 +12,7 @@
 set -euo pipefail
 
 export PODMANHPC_PODMAN_BIN="${PODMANHPC_PODMAN_BIN:-/global/common/shared/das/podman-4.7.0/bin/podman}"
+export PODMANHPC_WAIT_TIMEOUT="${PODMANHPC_WAIT_TIMEOUT:-120}"
 
 : "${SCRATCH:?SCRATCH must point to Perlmutter scratch}"
 JOB_OUTPUT_DIR="${JOB_OUTPUT_DIR:-${SCRATCH}/communication-libraries-image/slurm}"
@@ -24,6 +25,21 @@ RESULT_ROOT="${RESULT_ROOT:-${SCRATCH}/communication-libraries-image/benchmarks/
 RESULT_DIR="${RESULT_DIR:-${RESULT_ROOT}/${SLURM_JOB_ID:-manual}}"
 NCCL_TEST_ARGS="${NCCL_TEST_ARGS:--b 8 -e 128M -f 2}"
 RUN_DEGRADED="${RUN_DEGRADED:-1}"
+NODES="${NODES:-2}"
+TASKS_PER_NODE="${TASKS_PER_NODE:-4}"
+GPUS_PER_NODE="${GPUS_PER_NODE:-4}"
+NCCL_DEBUG="${NCCL_DEBUG:-WARN}"
+NCCL_DEBUG_SUBSYS="${NCCL_DEBUG_SUBSYS:-}"
+FI_UNIVERSE_SIZE="${FI_UNIVERSE_SIZE:-${SLURM_NTASKS:-$((NODES * TASKS_PER_NODE))}}"
+NCCL_MIN_NCHANNELS="${NCCL_MIN_NCHANNELS:-4}"
+NCCL_NCHANNELS_PER_NET_PEER="${NCCL_NCHANNELS_PER_NET_PEER:-4}"
+NCCL_CROSS_NIC="${NCCL_CROSS_NIC:-1}"
+# The direct net-GDR path currently trips FI_ENOSPC with aws-ofi-nccl on
+# Perlmutter containers. Keep this overrideable for follow-up tuning.
+NCCL_NET_GDR_LEVEL="${NCCL_NET_GDR_LEVEL:-LOC}"
+NCCL_GDRCOPY_ENABLE="${NCCL_GDRCOPY_ENABLE:-0}"
+NCCL_PROTO="${NCCL_PROTO:-^LL128}"
+CXI_DEVICE_MAP="${CXI_DEVICE_MAP:-cxi3,cxi2,cxi1,cxi0}"
 
 mkdir -p "${RESULT_DIR}"
 
@@ -64,19 +80,47 @@ COMMON_ENV=(
   -e 'PMI_*'
   -e 'PMIX_*'
   -e PMIX_MCA_psec=native
-  -e OMPI_MCA_pml=cm
-  -e OMPI_MCA_mtl=ofi
+  -e OMPI_MCA_pml=ob1
+  -e OMPI_MCA_btl=self,tcp,sm
   -e FI_MR_CACHE_MONITOR=userfaultfd
   -e FI_CXI_DISABLE_HOST_REGISTER=1
+  -e FI_CXI_DEFAULT_CQ_SIZE=131072
+  -e FI_CXI_DEFAULT_TX_SIZE=16384
+  -e FI_CXI_DEFAULT_RX_SIZE=16384
+  -e FI_CXI_RX_MATCH_MODE=software
+  -e FI_CXI_DISABLE_NON_INJECT_MSG_IDC=1
+  -e FI_CXI_RDZV_PROTO=alt_read
+  -e FI_CXI_RDZV_GET_MIN=0
+  -e FI_CXI_RDZV_THRESHOLD=0
+  -e FI_CXI_RDZV_EAGER_SIZE=0
+  -e FI_HMEM_CUDA_USE_GDRCOPY=1
+  -e FI_UNIVERSE_SIZE="${FI_UNIVERSE_SIZE}"
+  -e CXI_DEVICE_MAP="${CXI_DEVICE_MAP}"
   -e NVIDIA_VISIBLE_DEVICES=all
   -e CUDA_VISIBLE_DEVICES=0,1,2,3
   -e LD_LIBRARY_PATH=/opt/pmix/lib:/usr/local/lib:/usr/lib:/usr/lib64:/usr/lib64/nvidia:/usr/local/cuda/compat:/usr/local/cuda/lib64
-  -e NCCL_CROSS_NIC=1
+  -e NCCL_CROSS_NIC="${NCCL_CROSS_NIC}"
   -e NCCL_SOCKET_IFNAME=hsn
-  -e NCCL_NET_GDR_LEVEL=PHB
-  -e NCCL_NCHANNELS_PER_NET_PEER=4
-  -e NCCL_DEBUG=WARN
+  -e NCCL_NET_GDR_LEVEL="${NCCL_NET_GDR_LEVEL}"
+  -e NCCL_GDRCOPY_ENABLE="${NCCL_GDRCOPY_ENABLE}"
+  -e NCCL_MIN_NCHANNELS="${NCCL_MIN_NCHANNELS}"
+  -e NCCL_NCHANNELS_PER_NET_PEER="${NCCL_NCHANNELS_PER_NET_PEER}"
+  -e NCCL_PROTO="${NCCL_PROTO}"
+  -e NCCL_DEBUG="${NCCL_DEBUG}"
 )
+
+if [[ -n "${NCCL_DEBUG_SUBSYS}" ]]; then
+  COMMON_ENV+=(-e NCCL_DEBUG_SUBSYS="${NCCL_DEBUG_SUBSYS}")
+fi
+
+if [[ -n "${OFI_NCCL_PROTOCOL:-}" ]]; then
+  COMMON_ENV+=(-e OFI_NCCL_PROTOCOL="${OFI_NCCL_PROTOCOL}")
+fi
+
+if [[ -n "${FI_CXI_DEVICE_NAME_OVERRIDE:-}" ]]; then
+  FI_CXI_DEVICE_NAME="${FI_CXI_DEVICE_NAME_OVERRIDE}"
+  COMMON_ENV+=(-e FI_CXI_DEVICE_NAME="${FI_CXI_DEVICE_NAME}")
+fi
 
 run_case() {
   local name="$1"
@@ -96,10 +140,10 @@ run_case() {
 
   set +e
   {
-    echo "===== BEGIN BENCHMARK name=${name} suite=nccl impl=nccl mode=gpu provider=${provider} nodes=2 ntasks=8 tasks_per_node=4 command=/opt/nccl-tests/build/all_reduce_perf ${NCCL_TEST_ARGS} ====="
-    srun -N 2 \
-      --ntasks-per-node=4 \
-      --gpus-per-node=4 \
+    echo "===== BEGIN BENCHMARK name=${name} suite=nccl impl=nccl mode=gpu provider=${provider} nodes=${NODES} ntasks=$((NODES * TASKS_PER_NODE)) tasks_per_node=${TASKS_PER_NODE} command=/opt/nccl-tests/build/all_reduce_perf ${NCCL_TEST_ARGS} ====="
+    srun -N "${NODES}" \
+      --ntasks-per-node="${TASKS_PER_NODE}" \
+      --gpus-per-node="${GPUS_PER_NODE}" \
       --gpu-bind=none \
       --mpi=pmix \
       podman-hpc shared-run --rm --userns=keep-id \
@@ -117,7 +161,7 @@ run_case() {
       "${GPU_MOUNTS[@]}" \
       "${NVIDIA_LIBRARY_MOUNTS[@]}" \
       "${IMAGE}" \
-      bash -lc "/opt/nccl-tests/build/all_reduce_perf ${NCCL_TEST_ARGS}"
+      bash -lc 'if [[ "${FI_PROVIDER:-}" == "cxi" && -z "${FI_CXI_DEVICE_NAME:-}" ]]; then local_rank="${SLURM_LOCALID:-0}"; IFS=, read -r -a cxi_devices <<< "${CXI_DEVICE_MAP:-cxi3,cxi2,cxi1,cxi0}"; if (( local_rank < ${#cxi_devices[@]} )); then export FI_CXI_DEVICE_NAME="${cxi_devices[$local_rank]}"; else export FI_CXI_DEVICE_NAME="cxi${local_rank}"; fi; fi; echo "rank=${SLURM_PROCID:-?} local_rank=${SLURM_LOCALID:-?} CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-} FI_CXI_DEVICE_NAME=${FI_CXI_DEVICE_NAME:-} CXI_DEVICE_MAP=${CXI_DEVICE_MAP:-}"; /opt/nccl-tests/build/all_reduce_perf "$@"' bash ${NCCL_TEST_ARGS}
     status=$?
     echo "===== END BENCHMARK name=${name} status=${status} ====="
     exit "${status}"
@@ -129,6 +173,9 @@ run_case() {
 
 echo "IMAGE=${IMAGE}"
 echo "RESULT_DIR=${RESULT_DIR}"
+echo "CXI_DEVICE_MAP=${CXI_DEVICE_MAP}"
+echo "NCCL_NET_GDR_LEVEL=${NCCL_NET_GDR_LEVEL}"
+echo "NCCL_GDRCOPY_ENABLE=${NCCL_GDRCOPY_ENABLE}"
 
 run_case "nccl-gpu-all-reduce-cxi" cxi
 

@@ -129,7 +129,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libnccl2 libnccl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-ARG AWS_OFI_NCCL_VERSION=1.17.2
+ARG AWS_OFI_NCCL_VERSION=1.19.0
 RUN wget -q https://github.com/aws/aws-ofi-nccl/releases/download/v${AWS_OFI_NCCL_VERSION}/aws-ofi-nccl-${AWS_OFI_NCCL_VERSION}.tar.gz \
     && tar xf aws-ofi-nccl-${AWS_OFI_NCCL_VERSION}.tar.gz \
     && cd aws-ofi-nccl-${AWS_OFI_NCCL_VERSION} \
