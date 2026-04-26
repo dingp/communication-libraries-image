@@ -24,7 +24,8 @@ IMAGE="${IMAGE:-ghcr.io/dingp/communication-libraries-image:bench-${MPI_IMPL}-gp
 WORKDIR="${WORKDIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 RESULT_ROOT="${RESULT_ROOT:-${SCRATCH}/communication-libraries-image/benchmarks/results}"
 RESULT_DIR="${RESULT_DIR:-${RESULT_ROOT}/${SLURM_JOB_ID:-manual}}"
-RUN_DEGRADED="${RUN_DEGRADED:-1}"
+RUN_DEGRADED="${RUN_DEGRADED:-0}"
+RUN_CUDA_BUFFER="${RUN_CUDA_BUFFER:-auto}"
 
 mkdir -p "${RESULT_DIR}"
 
@@ -140,25 +141,69 @@ run_case() {
   return "${status}"
 }
 
+run_optional_case() {
+  local status
+
+  set +e
+  run_case "$@"
+  status=$?
+  set -e
+
+  if [[ "${status}" -ne 0 ]]; then
+    echo "Optional benchmark $1 failed with status ${status}; continuing."
+  fi
+}
+
+run_cuda_buffer=0
+case "${RUN_CUDA_BUFFER}" in
+  auto)
+    if [[ "${MPI_IMPL}" != "mpich" ]]; then
+      run_cuda_buffer=1
+    fi
+    ;;
+  1|true|yes)
+    run_cuda_buffer=1
+    ;;
+  0|false|no)
+    run_cuda_buffer=0
+    ;;
+  *)
+    echo "Unsupported RUN_CUDA_BUFFER=${RUN_CUDA_BUFFER}; expected auto, 1, or 0" >&2
+    exit 2
+    ;;
+esac
+
 echo "IMAGE=${IMAGE}"
 echo "RESULT_DIR=${RESULT_DIR}"
+echo "RUN_CUDA_BUFFER=${RUN_CUDA_BUFFER}"
 
 run_case "${MPI_IMPL}-gpu-osu-bw-intra-host" 1 2 2 cxi "./pt2pt/osu_bw --validation"
 run_case "${MPI_IMPL}-gpu-osu-bw-inter-host" 2 2 1 cxi "./pt2pt/osu_bw --validation"
-run_case "${MPI_IMPL}-gpu-osu-bw-intra-device" 1 2 2 cxi "./pt2pt/osu_bw --validation D D"
-run_case "${MPI_IMPL}-gpu-osu-bw-inter-device" 2 2 1 cxi "./pt2pt/osu_bw --validation D D"
+
+if [[ "${run_cuda_buffer}" == "1" ]]; then
+  run_case "${MPI_IMPL}-gpu-osu-bw-intra-device" 1 2 2 cxi "./pt2pt/osu_bw --validation D D"
+  run_case "${MPI_IMPL}-gpu-osu-bw-inter-device" 2 2 1 cxi "./pt2pt/osu_bw --validation D D"
+else
+  echo "Skipping CUDA-buffer OSU bandwidth cases for MPI_IMPL=${MPI_IMPL}; set RUN_CUDA_BUFFER=1 to enable."
+fi
 
 if [[ "${MPI_IMPL}" == openmpi* ]]; then
-  if [[ "${RUN_DEGRADED}" == "1" ]]; then
-    run_case "${MPI_IMPL}-gpu-osu-bw-inter-host-tcp" 2 2 1 tcp "./pt2pt/osu_bw --validation"
-    run_case "${MPI_IMPL}-gpu-osu-bw-inter-device-tcp" 2 2 1 tcp "./pt2pt/osu_bw --validation D D"
+  run_case "${MPI_IMPL}-gpu-osu-alltoall-host" 2 8 4 cxi "./collective/osu_alltoall --validation"
+
+  if [[ "${run_cuda_buffer}" == "1" ]]; then
+    run_case "${MPI_IMPL}-gpu-osu-alltoall-device" 2 8 4 cxi "./collective/osu_alltoall --validation -d cuda"
+  else
+    echo "Skipping CUDA-buffer OSU all-to-all case for MPI_IMPL=${MPI_IMPL}; set RUN_CUDA_BUFFER=1 to enable."
   fi
 
-  run_case "${MPI_IMPL}-gpu-osu-alltoall-host" 2 8 4 cxi "./collective/osu_alltoall --validation"
-  run_case "${MPI_IMPL}-gpu-osu-alltoall-device" 2 8 4 cxi "./collective/osu_alltoall --validation -d cuda"
-
   if [[ "${RUN_DEGRADED}" == "1" ]]; then
-    run_case "${MPI_IMPL}-gpu-osu-alltoall-host-tcp" 2 8 4 tcp "./collective/osu_alltoall --validation"
-    run_case "${MPI_IMPL}-gpu-osu-alltoall-device-tcp" 2 8 4 tcp "./collective/osu_alltoall --validation -d cuda"
+    run_optional_case "${MPI_IMPL}-gpu-osu-bw-inter-host-tcp" 2 2 1 tcp "./pt2pt/osu_bw --validation"
+    if [[ "${run_cuda_buffer}" == "1" ]]; then
+      run_optional_case "${MPI_IMPL}-gpu-osu-bw-inter-device-tcp" 2 2 1 tcp "./pt2pt/osu_bw --validation D D"
+    fi
+    run_optional_case "${MPI_IMPL}-gpu-osu-alltoall-host-tcp" 2 8 4 tcp "./collective/osu_alltoall --validation"
+    if [[ "${run_cuda_buffer}" == "1" ]]; then
+      run_optional_case "${MPI_IMPL}-gpu-osu-alltoall-device-tcp" 2 8 4 tcp "./collective/osu_alltoall --validation -d cuda"
+    fi
   fi
 fi

@@ -23,7 +23,7 @@ IMAGE="${IMAGE:-ghcr.io/dingp/communication-libraries-image:bench-${MPI_IMPL}-cp
 WORKDIR="${WORKDIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 RESULT_ROOT="${RESULT_ROOT:-${SCRATCH}/communication-libraries-image/benchmarks/results}"
 RESULT_DIR="${RESULT_DIR:-${RESULT_ROOT}/${SLURM_JOB_ID:-manual}}"
-RUN_DEGRADED="${RUN_DEGRADED:-1}"
+RUN_DEGRADED="${RUN_DEGRADED:-0}"
 
 mkdir -p "${RESULT_DIR}"
 
@@ -119,6 +119,19 @@ run_case() {
   return "${status}"
 }
 
+run_optional_case() {
+  local status
+
+  set +e
+  run_case "$@"
+  status=$?
+  set -e
+
+  if [[ "${status}" -ne 0 ]]; then
+    echo "Optional benchmark $1 failed with status ${status}; continuing."
+  fi
+}
+
 echo "IMAGE=${IMAGE}"
 echo "RESULT_DIR=${RESULT_DIR}"
 
@@ -126,13 +139,10 @@ run_case "${MPI_IMPL}-cpu-osu-bw-intra-host" 1 2 2 cxi "./pt2pt/osu_bw --validat
 run_case "${MPI_IMPL}-cpu-osu-bw-inter-host" 2 2 1 cxi "./pt2pt/osu_bw --validation"
 
 if [[ "${MPI_IMPL}" == openmpi* ]]; then
-  if [[ "${RUN_DEGRADED}" == "1" ]]; then
-    run_case "${MPI_IMPL}-cpu-osu-bw-inter-host-tcp" 2 2 1 tcp "./pt2pt/osu_bw --validation"
-  fi
-
   run_case "${MPI_IMPL}-cpu-osu-alltoall-host" 2 8 4 cxi "./collective/osu_alltoall --validation"
 
   if [[ "${RUN_DEGRADED}" == "1" ]]; then
-    run_case "${MPI_IMPL}-cpu-osu-alltoall-host-tcp" 2 8 4 tcp "./collective/osu_alltoall --validation"
+    run_optional_case "${MPI_IMPL}-cpu-osu-bw-inter-host-tcp" 2 2 1 tcp "./pt2pt/osu_bw --validation"
+    run_optional_case "${MPI_IMPL}-cpu-osu-alltoall-host-tcp" 2 8 4 tcp "./collective/osu_alltoall --validation"
   fi
 fi

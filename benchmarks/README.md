@@ -70,11 +70,13 @@ Run MPICH OSU `osu_bw` host-buffer tests on CPU nodes:
 MPI_IMPL=mpich sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-cpu.sbatch
 ```
 
-Run MPICH OSU `osu_bw` host- and device-buffer tests on GPU nodes:
+Run MPICH OSU `osu_bw` host-buffer tests on GPU nodes:
 
 ```bash
 MPI_IMPL=mpich sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-gpu.sbatch
 ```
+
+The MPICH GPU script skips CUDA-buffer OSU cases by default because the current containerized MPICH path fails the OSU CUDA-buffer `Waitall` case on Perlmutter. Set `RUN_CUDA_BUFFER=1` when explicitly testing that path.
 
 Run OpenMPI or OpenMPI+OFI+UCX OSU benchmarks:
 
@@ -83,7 +85,7 @@ MPI_IMPL=openmpi sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-g
 MPI_IMPL=openmpi-ofi-ucx sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-gpu.sbatch
 ```
 
-The OpenMPI scripts run the CSCS benchmark types: `osu_bw` inter-node and intra-node, `osu_alltoall` across two nodes, host and CUDA-buffer variants on GPU nodes, plus TCP/no-CXI comparison cases when `RUN_DEGRADED=1`.
+The OpenMPI scripts run the CSCS benchmark types: `osu_bw` inter-node and intra-node, `osu_alltoall` across two nodes, and host plus CUDA-buffer variants on GPU nodes. TCP/no-CXI comparison cases are optional with `RUN_DEGRADED=1`; they are treated as diagnostic comparisons and do not fail the batch job if they fail.
 
 Run NCCL `all_reduce_perf` on two GPU nodes:
 
@@ -99,7 +101,7 @@ GPU:         0     1     2     3
 CXI:         cxi3  cxi2  cxi1  cxi0
 ```
 
-The default can be changed with `CXI_DEVICE_MAP`. The script also defaults `NCCL_NET_GDR_LEVEL=LOC` and `NCCL_GDRCOPY_ENABLE=0` because the direct net-GDR path currently returns `FI_ENOSPC` in this containerized Perlmutter setup. This was reproduced with NCCL 2.29.7-1+cuda13.2 and 2.30.4-1+cuda13.2 when using aws-ofi-nccl 1.19.0. Set `NCCL_NET_GDR_LEVEL=PHB NCCL_GDRCOPY_ENABLE=1` before `sbatch` when testing direct GPU-memory transport.
+The default can be changed with `CXI_DEVICE_MAP`. The script also defaults `NCCL_NET_GDR_LEVEL=LOC` and `NCCL_GDRCOPY_ENABLE=0` because the direct net-GDR path currently returns `FI_ENOSPC` in this containerized Perlmutter setup. This was reproduced with NCCL 2.29.7-1+cuda13.2 and 2.30.4-1+cuda13.2 when using aws-ofi-nccl 1.19.0. Set `NCCL_NET_GDR_LEVEL=PHB NCCL_GDRCOPY_ENABLE=1` before `sbatch` when testing direct GPU-memory transport. Set `RUN_DEGRADED=1` to add the optional socket comparison; it is treated as diagnostic and does not fail the batch job if it fails.
 
 Run NVSHMEM device all-to-all latency on two GPU nodes:
 

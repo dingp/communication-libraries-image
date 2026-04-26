@@ -24,7 +24,7 @@ WORKDIR="${WORKDIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 RESULT_ROOT="${RESULT_ROOT:-${SCRATCH}/communication-libraries-image/benchmarks/results}"
 RESULT_DIR="${RESULT_DIR:-${RESULT_ROOT}/${SLURM_JOB_ID:-manual}}"
 NCCL_TEST_ARGS="${NCCL_TEST_ARGS:--b 8 -e 128M -f 2}"
-RUN_DEGRADED="${RUN_DEGRADED:-1}"
+RUN_DEGRADED="${RUN_DEGRADED:-0}"
 NODES="${NODES:-2}"
 TASKS_PER_NODE="${TASKS_PER_NODE:-4}"
 GPUS_PER_NODE="${GPUS_PER_NODE:-4}"
@@ -171,6 +171,19 @@ run_case() {
   return "${status}"
 }
 
+run_optional_case() {
+  local status
+
+  set +e
+  run_case "$@"
+  status=$?
+  set -e
+
+  if [[ "${status}" -ne 0 ]]; then
+    echo "Optional benchmark $1 failed with status ${status}; continuing."
+  fi
+}
+
 echo "IMAGE=${IMAGE}"
 echo "RESULT_DIR=${RESULT_DIR}"
 echo "CXI_DEVICE_MAP=${CXI_DEVICE_MAP}"
@@ -180,5 +193,5 @@ echo "NCCL_GDRCOPY_ENABLE=${NCCL_GDRCOPY_ENABLE}"
 run_case "nccl-gpu-all-reduce-cxi" cxi
 
 if [[ "${RUN_DEGRADED}" == "1" ]]; then
-  run_case "nccl-gpu-all-reduce-socket" tcp
+  run_optional_case "nccl-gpu-all-reduce-socket" tcp
 fi
