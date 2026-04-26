@@ -188,6 +188,12 @@ These examples do not use podman-hpc `--mpi` or `--cuda-mpi`. MPI, libfabric, CX
 
 The directory `scripts/perlmutter-images/` contains standalone `sbatch` scripts, one per published image. Each file contains the flattened `srun ... podman-hpc shared-run` command and can be copied into an application repository. Use `scripts/run-perlmutter.sh` for day-to-day repo testing; use the standalone scripts when documenting or adapting a single image for an end-user workflow.
 
+For MPICH and OpenMPI images, the default smoke test is:
+
+```bash
+python3 /workspace/tests/test_mpi4py.py
+```
+
 ### Standalone Scripts
 
 Each script has default `#SBATCH` settings, a default image tag, and a simple smoke-test command. Copy the script for the image you use, edit the `#SBATCH` lines and `APP_COMMAND`, then submit it with `sbatch`.
@@ -231,6 +237,18 @@ PODMANHPC_PMIX_HELPER=module scripts/run-perlmutter.sh gpu openmpi
 
 For GPU runs, bind the complete host NVIDIA driver library set, not only `libcuda`. The script binds `/usr/lib64/libcuda*`, `/usr/lib64/libnvidia*`, and `/usr/bin/nvidia-smi`; this keeps the driver JIT and NVML libraries matched to the Perlmutter 580.105.08 host driver while the image carries the CUDA 13.2 user-space toolkit.
 
+## Benchmarks
+
+CSCS-style benchmark support is under `benchmarks/`. It includes benchmark image stages based on this repo's images, Perlmutter `sbatch` scripts, and a parser that converts OSU, NCCL, and NVSHMEM logs into a Markdown report.
+
+```bash
+benchmarks/scripts/build.sh bench-openmpi-ofi-ucx-gpu
+MPI_IMPL=openmpi-ofi-ucx sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-gpu.sbatch
+benchmarks/scripts/process-results.py benchmarks/results/<jobid> -o benchmarks/results/<jobid>/report.md
+```
+
+See [`benchmarks/README.md`](benchmarks/README.md) for the benchmark matrix.
+
 ## Published Images
 
 GitHub Actions builds and pushes public-source targets to GHCR:
@@ -246,4 +264,12 @@ ghcr.io/dingp/communication-libraries-image:openmpi-ofi-ucx-cpu
 ghcr.io/dingp/communication-libraries-image:openmpi-ofi-ucx-gpu
 ghcr.io/dingp/communication-libraries-image:nccl-gpu
 ghcr.io/dingp/communication-libraries-image:nvshmem-gpu
+ghcr.io/dingp/communication-libraries-image:bench-mpich-cpu
+ghcr.io/dingp/communication-libraries-image:bench-mpich-gpu
+ghcr.io/dingp/communication-libraries-image:bench-openmpi-cpu
+ghcr.io/dingp/communication-libraries-image:bench-openmpi-gpu
+ghcr.io/dingp/communication-libraries-image:bench-openmpi-ofi-ucx-cpu
+ghcr.io/dingp/communication-libraries-image:bench-openmpi-ofi-ucx-gpu
+ghcr.io/dingp/communication-libraries-image:bench-nccl-gpu
+ghcr.io/dingp/communication-libraries-image:bench-nvshmem-gpu
 ```

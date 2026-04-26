@@ -4,3 +4,4 @@
 *.log
 log_*.out
 tmp
+benchmarks/results

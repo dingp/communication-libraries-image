@@ -5,3 +5,4 @@ __pycache__/
 log_*.out
 build/
 tmp/
+benchmarks/results/

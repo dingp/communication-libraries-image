@@ -11,7 +11,7 @@ Examples:
   scripts/run-perlmutter.sh gpu openmpi
   scripts/run-perlmutter.sh gpu openmpi-ofi-ucx
   scripts/run-perlmutter.sh gpu nccl ghcr.io/dingp/communication-libraries-image:nccl-gpu
-  scripts/run-perlmutter.sh gpu openmpi -- python3 /workspace/tests/mpi4py_hello.py
+  scripts/run-perlmutter.sh gpu openmpi -- python3 /workspace/tests/test_mpi4py.py
 
 Set PODMANHPC_PMIX_HELPER=module after the generic podman-hpc --pmix helper is deployed.
 USAGE
@@ -64,15 +64,15 @@ case "${stack}" in
     ;;
   mpich)
     default_target="mpich-${suffix}"
-    default_command=(python3 /workspace/tests/mpi4py_hello.py)
+    default_command=(python3 /workspace/tests/test_mpi4py.py)
     ;;
   openmpi)
     default_target="openmpi-${suffix}"
-    default_command=(python3 /workspace/tests/mpi4py_hello.py)
+    default_command=(python3 /workspace/tests/test_mpi4py.py)
     ;;
   openmpi-ofi-ucx)
     default_target="openmpi-ofi-ucx-${suffix}"
-    default_command=(python3 /workspace/tests/mpi4py_hello.py)
+    default_command=(python3 /workspace/tests/test_mpi4py.py)
     ;;
   nccl)
     [[ "${mode}" == "gpu" ]] || { echo "NCCL is GPU-only in this repo" >&2; exit 2; }

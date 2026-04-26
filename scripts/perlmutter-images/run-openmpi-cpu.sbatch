@@ -11,7 +11,7 @@
 set -euo pipefail
 
 IMAGE="${IMAGE:-ghcr.io/dingp/communication-libraries-image:openmpi-cpu}"
-APP_COMMAND="${APP_COMMAND:-python3 -c 'from mpi4py import MPI; c=MPI.COMM_WORLD; print(\"rank\", c.Get_rank(), \"of\", c.Get_size())'}"
+APP_COMMAND="${APP_COMMAND:-python3 /workspace/tests/test_mpi4py.py}"
 WORKDIR="${WORKDIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 TASKS_PER_NODE="${TASKS_PER_NODE:-${SLURM_NTASKS_PER_NODE:-8}}"
 TASKS_PER_NODE="${TASKS_PER_NODE%%(*}"
