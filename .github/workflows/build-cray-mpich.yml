@@ -1,0 +1,44 @@
+name: Build Cray MPICH Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: GHCR tag to publish
+        required: false
+        default: cray-mpich-cpe
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-cray-mpich:
+    runs-on: ubuntu-24.04
+    if: ${{ vars.BUILD_CRAY_MPICH == '1' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Cray MPICH image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: container/cray-mpich-cpe.Containerfile
+          push: true
+          tags: ghcr.io/dingp/communication-libraries-image:${{ github.event.inputs.image_tag }}
+          build-args: |
+            HPE_CPE_REPO_URL=${{ secrets.HPE_CPE_REPO_URL }}
+            HPE_CPE_GPG_KEY_URL=${{ secrets.HPE_CPE_GPG_KEY_URL }}
+

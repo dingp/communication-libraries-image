@@ -1,0 +1,197 @@
+# Communication Libraries Image
+
+Container image recipes and Perlmutter run scripts for Slingshot/CXI communication libraries.
+
+The recipes are for NERSC Perlmutter CPU and GPU nodes. GPU images default to CUDA 13.2.0. Perlmutter currently has NVIDIA driver 580.105.08; NVIDIA documents R580 as the CUDA 13.x driver family, so CUDA 13.2 is expected to work through CUDA minor-version compatibility. The CUDA version is still a build argument so it can be pinned to 13.0 if site validation requires it.
+
+## Targets
+
+Public-source targets in `container/Containerfile`:
+
+| Image tag | Nodes | Contents |
+| --- | --- | --- |
+| `libfabric-cpu` | CPU | XPMEM userspace, Cassini/CXI headers, libcxi, libfabric with CXI/LNX/EFA |
+| `libfabric-gpu` | GPU | `libfabric-cpu` plus CUDA and GDRCopy support |
+| `mpich-cpu` | CPU | `libfabric-cpu` plus MPICH CH4/OFI linked to PMIx |
+| `mpich-gpu` | GPU | `mpich-cpu` equivalent with CUDA-aware MPICH build |
+| `openmpi-cpu` | CPU | `libfabric-cpu` plus Open MPI 5 with OFI and external PMIx |
+| `openmpi-gpu` | GPU | `openmpi-cpu` equivalent with CUDA-aware Open MPI build |
+| `openmpi-ofi-ucx-cpu` | CPU | `openmpi-cpu` plus UCX and OpenSHMEM enabled |
+| `openmpi-ofi-ucx-gpu` | GPU | CUDA-aware Open MPI with OFI, UCX, OpenSHMEM, and external PMIx |
+| `nccl-gpu` | GPU | `openmpi-ofi-ucx-gpu`, NCCL, AWS OFI NCCL plugin, and NCCL tests |
+| `nvshmem-gpu` | GPU | `openmpi-ofi-ucx-gpu`, NCCL, and NVSHMEM with libfabric/PMIx support |
+
+The Cray MPICH example is in `container/cray-mpich-cpe.Containerfile`. It is intentionally separate because HPE Cray MPICH is delivered through HPE CPE package repositories or site mirrors, not public source tarballs.
+
+## Stack Relationships
+
+These images keep the communication stack inside the container, while the host provides the kernel drivers, Slurm launch, and device files.
+
+The main layers are:
+
+| Layer | What it provides | Main techniques used |
+| --- | --- | --- |
+| CXI | Userspace access to the HPE Slingshot Cassini NIC. | Host kernel device files such as `/dev/cxi*`, libcxi ioctls, NIC command queues, completion queues, memory registration, and hardware offload. |
+| OFI | A provider-neutral network API used by MPI, NCCL plugins, and PGAS libraries. | The libfabric API exposes endpoints, address vectors, completion queues, scalable endpoints, tagged messaging, RMA, atomics, and provider selection through `FI_PROVIDER=cxi`. |
+| libfabric | The implementation of OFI and the container entry point to the CXI provider. | Provider plugins, memory registration cache, XPMEM-assisted intra-node paths, and optional CUDA/GDRCopy memory support in GPU images. |
+| UCX | A communication framework used by OpenMPI components and OpenSHMEM. | Transport selection, active messages, RMA, tagged operations, shared memory transports, CUDA memory hooks, and optional GPUDirect-style paths. |
+| PMIx | Process-management wire-up between Slurm and ranks inside the container. | Slurm hosts the PMIx server, the image carries the OpenPMIx client, and ranks exchange job metadata, endpoints, namespaces, and local topology. |
+| MPI | The application-facing distributed-memory programming model. | Point-to-point messages, collectives, communicators, derived datatypes, one-sided RMA, and launcher integration through PMIx. |
+| MPICH | MPI implementation used for CH4/OFI examples. | The CH4 device uses the OFI netmod, which maps MPI operations onto libfabric endpoints and the `cxi` provider. |
+| OpenMPI | MPI and OpenSHMEM implementation used for the combined examples. | Modular components select the runtime path: `pml/cm` plus `mtl/ofi` for MPI over OFI/CXI, and UCX components for optional MPI paths and OSHMEM. |
+| NCCL | GPU collective communication library. | CUDA kernels, topology-aware rings/trees, GPU buffers, and the AWS OFI NCCL plugin for Slingshot through libfabric/CXI. |
+| OpenSHMEM | Partitioned global address space model for symmetric-memory communication. | Processing elements, symmetric heaps, puts/gets, atomics, barriers, and OpenMPI OSHMEM SPML components, with UCX in the combined images. |
+| NVSHMEM | GPU-resident SHMEM programming model. | Symmetric GPU memory, device-side puts/gets/atomics, CUDA streams, PMIx bootstrap, libfabric/CXI transport, and NCCL-assisted collectives where applicable. |
+
+MPI over Slingshot uses OFI/libfabric and the CXI provider:
+
+```text
+MPI application
+  |
+  +-- MPICH CH4/OFI
+  |     |
+  |     +-- OFI API
+  |           |
+  |           +-- libfabric cxi provider
+  |                 |
+  |                 +-- libcxi + host /dev/cxi*
+  |                       |
+  |                       +-- Slingshot/Cassini NIC
+  |
+  +-- OpenMPI default on Perlmutter
+        |
+        +-- PML cm -> MTL ofi
+              |
+              +-- OFI API -> libfabric cxi -> libcxi -> /dev/cxi*
+```
+
+PMIx is the process wire-up path from Slurm into the container:
+
+```text
+srun --mpi=pmix
+  |
+  +-- Slurm PMIx server on host
+        |
+        +-- OpenPMIx client in image
+              |
+              +-- MPI ranks or SHMEM PEs
+```
+
+The combined OpenMPI targets include both OFI and UCX:
+
+```text
+openmpi-ofi-ucx-*
+  |
+  +-- MPI default path:
+  |     PML cm -> MTL ofi -> libfabric -> cxi
+  |
+  +-- Optional MPI/one-sided path:
+  |     PML ucx / OSC ucx -> UCX transports
+  |
+  +-- OpenSHMEM path:
+        OSHMEM -> SPML ucx -> UCX transports
+```
+
+GPU collectives and GPU SHMEM layer on the same network substrate:
+
+```text
+NCCL
+  |
+  +-- AWS OFI NCCL plugin -> libfabric/OFI -> cxi
+
+NVSHMEM
+  |
+  +-- PMIx for wire-up
+  +-- libfabric/OFI/cxi for remote transport
+  +-- NCCL for supported collectives
+  +-- CUDA/GDRCopy for GPU memory paths
+```
+
+UCX is present in the combined OpenMPI images for OpenSHMEM and portability testing. The default Perlmutter MPI path still selects OFI/CXI with:
+
+```bash
+OMPI_MCA_pml=cm
+OMPI_MCA_mtl=ofi
+FI_PROVIDER=cxi
+PMIX_MCA_psec=native
+```
+
+## Documentation
+
+Dedicated notes are in `docs/`:
+
+| Topic | Page |
+| --- | --- |
+| CXI | [`docs/cxi.md`](docs/cxi.md) |
+| libfabric and OFI | [`docs/libfabric-ofi.md`](docs/libfabric-ofi.md) |
+| UCX | [`docs/ucx.md`](docs/ucx.md) |
+| PMIx | [`docs/pmix.md`](docs/pmix.md) |
+| MPI | [`docs/mpi.md`](docs/mpi.md) |
+| MPICH | [`docs/mpich.md`](docs/mpich.md) |
+| Cray MPICH | [`docs/cray-mpich.md`](docs/cray-mpich.md) |
+| OpenMPI | [`docs/openmpi.md`](docs/openmpi.md) |
+| NCCL | [`docs/nccl.md`](docs/nccl.md) |
+| OpenSHMEM | [`docs/openshmem.md`](docs/openshmem.md) |
+| NVSHMEM | [`docs/nvshmem.md`](docs/nvshmem.md) |
+| Perlmutter runtime | [`docs/runtime.md`](docs/runtime.md) |
+
+## Local Builds
+
+Build one target:
+
+```bash
+scripts/build.sh mpich-cpu
+scripts/build.sh openmpi-gpu
+scripts/build.sh openmpi-ofi-ucx-gpu
+```
+
+Build all public-source targets:
+
+```bash
+scripts/build.sh all
+```
+
+Override CUDA:
+
+```bash
+scripts/build.sh --build-arg CUDA_VERSION=13.0.0 mpich-gpu
+```
+
+## Perlmutter Runs
+
+These scripts do not use podman-hpc `--mpi` or `--cuda-mpi`. MPI, libfabric, and CXI userspace components are in the image. Slurm launch uses PMIx only, and `podman-hpc shared-run` is used so each node starts one container and Slurm ranks exec into it:
+
+```bash
+scripts/run-perlmutter.sh cpu mpich
+scripts/run-perlmutter.sh gpu openmpi
+scripts/run-perlmutter.sh gpu openmpi-ofi-ucx
+scripts/run-perlmutter.sh gpu nccl
+scripts/run-perlmutter.sh gpu nvshmem
+```
+
+The run script currently passes the PMIx and CXI runtime environment explicitly. Once NERSC/podman-hpc#152 is deployed, set `PODMANHPC_PMIX_HELPER=module` to use the `podman-hpc --pmix` helper instead of the manual PMIx plumbing:
+
+```bash
+PODMANHPC_PMIX_HELPER=module scripts/run-perlmutter.sh gpu openmpi
+```
+
+For GPU runs, bind the complete host NVIDIA driver library set, not only `libcuda`. The script binds `/usr/lib64/libcuda*`, `/usr/lib64/libnvidia*`, and `/usr/bin/nvidia-smi`; this keeps the driver JIT and NVML libraries matched to the Perlmutter 580.105.08 host driver while the image carries the CUDA 13.2 user-space toolkit.
+
+## Published Images
+
+GitHub Actions builds and pushes public-source targets to GHCR:
+
+```text
+ghcr.io/dingp/communication-libraries-image:libfabric-cpu
+ghcr.io/dingp/communication-libraries-image:libfabric-gpu
+ghcr.io/dingp/communication-libraries-image:mpich-cpu
+ghcr.io/dingp/communication-libraries-image:mpich-gpu
+ghcr.io/dingp/communication-libraries-image:openmpi-cpu
+ghcr.io/dingp/communication-libraries-image:openmpi-gpu
+ghcr.io/dingp/communication-libraries-image:openmpi-ofi-ucx-cpu
+ghcr.io/dingp/communication-libraries-image:openmpi-ofi-ucx-gpu
+ghcr.io/dingp/communication-libraries-image:nccl-gpu
+ghcr.io/dingp/communication-libraries-image:nvshmem-gpu
+```
+
+Cray MPICH builds require HPE CPE repository access. See `docs/cray-mpich.md`.
