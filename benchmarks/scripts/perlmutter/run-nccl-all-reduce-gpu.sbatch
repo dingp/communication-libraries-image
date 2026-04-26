@@ -11,6 +11,8 @@
 
 set -euo pipefail
 
+export PODMANHPC_PODMAN_BIN="${PODMANHPC_PODMAN_BIN:-/global/common/shared/das/podman-4.7.0/bin/podman}"
+
 : "${SCRATCH:?SCRATCH must point to Perlmutter scratch}"
 JOB_OUTPUT_DIR="${JOB_OUTPUT_DIR:-${SCRATCH}/communication-libraries-image/slurm}"
 mkdir -p "${JOB_OUTPUT_DIR}"
@@ -67,7 +69,7 @@ COMMON_ENV=(
   -e FI_MR_CACHE_MONITOR=userfaultfd
   -e FI_CXI_DISABLE_HOST_REGISTER=1
   -e NVIDIA_VISIBLE_DEVICES=all
-  -e CUDA_VISIBLE_DEVICES
+  -e CUDA_VISIBLE_DEVICES=0,1,2,3
   -e LD_LIBRARY_PATH=/opt/pmix/lib:/usr/local/lib:/usr/lib:/usr/lib64:/usr/lib64/nvidia:/usr/local/cuda/compat:/usr/local/cuda/lib64
   -e NCCL_CROSS_NIC=1
   -e NCCL_SOCKET_IFNAME=hsn
@@ -97,9 +99,10 @@ run_case() {
     echo "===== BEGIN BENCHMARK name=${name} suite=nccl impl=nccl mode=gpu provider=${provider} nodes=2 ntasks=8 tasks_per_node=4 command=/opt/nccl-tests/build/all_reduce_perf ${NCCL_TEST_ARGS} ====="
     srun -N 2 \
       --ntasks-per-node=4 \
-      --gpus-per-task=1 \
+      --gpus-per-node=4 \
+      --gpu-bind=none \
       --mpi=pmix \
-      podman-hpc shared-run --rm \
+      podman-hpc shared-run --rm --userns=keep-id \
       "${PMIX_HELPER_ARGS[@]}" \
       "${COMMON_ENV[@]}" \
       "${provider_env[@]}" \

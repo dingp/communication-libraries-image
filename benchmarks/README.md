@@ -49,6 +49,15 @@ Each script writes Slurm stdout/stderr under `$SCRATCH/communication-libraries-i
 Override `JOB_OUTPUT_DIR` or `RESULT_ROOT` if you want a different scratch location.
 Before submitting, replace `#SBATCH --account=YOUR_NERSC_ACCOUNT` with your allocation account.
 
+The benchmark jobs launch with `srun --mpi=pmix` and `podman-hpc shared-run`.
+Until the site `podman-hpc` stack handles `--userns=keep-id` reliably with PMIx, these scripts default to the older Podman backend:
+
+```bash
+PODMANHPC_PODMAN_BIN=/global/common/shared/das/podman-4.7.0/bin/podman
+```
+
+Set `PODMANHPC_PODMAN_BIN` before `sbatch` if you need to test a different backend.
+
 Run MPICH OSU `osu_bw` host-buffer tests on CPU nodes:
 
 ```bash

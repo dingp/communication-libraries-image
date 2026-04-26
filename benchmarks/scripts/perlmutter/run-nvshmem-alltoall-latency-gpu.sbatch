@@ -11,6 +11,8 @@
 
 set -euo pipefail
 
+export PODMANHPC_PODMAN_BIN="${PODMANHPC_PODMAN_BIN:-/global/common/shared/das/podman-4.7.0/bin/podman}"
+
 : "${SCRATCH:?SCRATCH must point to Perlmutter scratch}"
 JOB_OUTPUT_DIR="${JOB_OUTPUT_DIR:-${SCRATCH}/communication-libraries-image/slurm}"
 mkdir -p "${JOB_OUTPUT_DIR}"
@@ -66,7 +68,7 @@ set +e
     --ntasks-per-node=4 \
     --gpus-per-task=1 \
     --mpi=pmix \
-    podman-hpc shared-run --rm \
+    podman-hpc shared-run --rm --userns=keep-id \
     "${PMIX_HELPER_ARGS[@]}" \
     -e 'SLURM_*' \
     -e 'SLURMD_*' \
