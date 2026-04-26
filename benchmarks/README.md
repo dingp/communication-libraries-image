@@ -2,7 +2,7 @@
 
 This directory contains Perlmutter benchmark image recipes, Slurm job scripts, and a result parser modeled on the CSCS communication-library documentation.
 
-The benchmark image stages use the main repository images as base images and add only benchmark suites:
+The benchmark image stages use the main repository images as base images and add only benchmark suites. MPI benchmark images build OSU Micro-Benchmarks 7.5.2 by default.
 
 | Benchmark image tag | Base image | Added benchmark suite |
 | --- | --- | --- |
@@ -35,6 +35,12 @@ Use local base images instead of the published GHCR images:
 
 ```bash
 BASE_IMAGE_REPO=localhost/communication-libraries-image benchmarks/scripts/build.sh all
+```
+
+Override the OSU Micro-Benchmarks version when needed:
+
+```bash
+OSU_VERSION=7.5.2 benchmarks/scripts/build.sh bench-openmpi-gpu
 ```
 
 ## Run On Perlmutter

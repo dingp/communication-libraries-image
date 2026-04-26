@@ -1,5 +1,5 @@
 ARG BASE_IMAGE_REPO=ghcr.io/dingp/communication-libraries-image
-ARG OSU_VERSION=7.5.1
+ARG OSU_VERSION=7.5.2
 ARG AWS_OFI_NCCL_VERSION=1.17.2
 ARG NCCL_TESTS_VERSION=2.17.1
 
@@ -8,7 +8,7 @@ ARG OSU_VERSION
 RUN wget -q -O osu-micro-benchmarks.tar.gz https://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-v${OSU_VERSION}.tar.gz \
-    && tar xf osu-micro-benchmarks.tar.gz \
+    && tar --no-same-owner -xf osu-micro-benchmarks.tar.gz \
     && cd osu-micro-benchmarks-* \
     && ./configure --prefix=/usr/local CC="$(command -v mpicc)" CFLAGS="-O3" \
     && make -j$(nproc) \
@@ -24,7 +24,7 @@ RUN echo /usr/local/cuda/lib64/stubs > /etc/ld.so.conf.d/cuda-stubs.conf \
     && wget -q -O osu-micro-benchmarks.tar.gz https://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-v${OSU_VERSION}.tar.gz \
-    && tar xf osu-micro-benchmarks.tar.gz \
+    && tar --no-same-owner -xf osu-micro-benchmarks.tar.gz \
     && cd osu-micro-benchmarks-* \
     && ./configure --prefix=/usr/local CC="$(command -v mpicc)" CFLAGS="-O3" \
        --enable-cuda \
@@ -42,7 +42,7 @@ ARG OSU_VERSION
 RUN wget -q -O osu-micro-benchmarks.tar.gz https://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-v${OSU_VERSION}.tar.gz \
-    && tar xf osu-micro-benchmarks.tar.gz \
+    && tar --no-same-owner -xf osu-micro-benchmarks.tar.gz \
     && cd osu-micro-benchmarks-* \
     && ./configure --prefix=/usr/local CC="$(command -v mpicc)" CFLAGS="-O3" \
     && make -j$(nproc) \
@@ -58,7 +58,7 @@ RUN echo /usr/local/cuda/lib64/stubs > /etc/ld.so.conf.d/cuda-stubs.conf \
     && wget -q -O osu-micro-benchmarks.tar.gz https://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-v${OSU_VERSION}.tar.gz \
-    && tar xf osu-micro-benchmarks.tar.gz \
+    && tar --no-same-owner -xf osu-micro-benchmarks.tar.gz \
     && cd osu-micro-benchmarks-* \
     && ./configure --prefix=/usr/local CC="$(command -v mpicc)" CFLAGS="-O3" \
        --enable-cuda \
@@ -76,7 +76,7 @@ ARG OSU_VERSION
 RUN wget -q -O osu-micro-benchmarks.tar.gz https://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-v${OSU_VERSION}.tar.gz \
-    && tar xf osu-micro-benchmarks.tar.gz \
+    && tar --no-same-owner -xf osu-micro-benchmarks.tar.gz \
     && cd osu-micro-benchmarks-* \
     && ./configure --prefix=/usr/local CC="$(command -v mpicc)" CFLAGS="-O3" \
     && make -j$(nproc) \
@@ -92,7 +92,7 @@ RUN echo /usr/local/cuda/lib64/stubs > /etc/ld.so.conf.d/cuda-stubs.conf \
     && wget -q -O osu-micro-benchmarks.tar.gz https://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VERSION}.tar.gz \
     || wget -q -O osu-micro-benchmarks.tar.gz http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-v${OSU_VERSION}.tar.gz \
-    && tar xf osu-micro-benchmarks.tar.gz \
+    && tar --no-same-owner -xf osu-micro-benchmarks.tar.gz \
     && cd osu-micro-benchmarks-* \
     && ./configure --prefix=/usr/local CC="$(command -v mpicc)" CFLAGS="-O3" \
        --enable-cuda \

@@ -14,6 +14,7 @@ Environment:
   CONTAINER_BUILDER  Container builder command. Default: podman-hpc
   IMAGE_REPO         Repository for benchmark image tags. Default: localhost/communication-libraries-image
   BASE_IMAGE_REPO    Repository containing the base images. Default: ghcr.io/dingp/communication-libraries-image
+  OSU_VERSION        OSU Micro-Benchmarks version. Default: 7.5.2
 USAGE
 }
 
@@ -41,6 +42,7 @@ fi
 runtime="${CONTAINER_BUILDER:-podman-hpc}"
 repo="${IMAGE_REPO:-localhost/communication-libraries-image}"
 base_repo="${BASE_IMAGE_REPO:-ghcr.io/dingp/communication-libraries-image}"
+osu_version="${OSU_VERSION:-7.5.2}"
 
 for target in "${targets[@]}"; do
   case " ${all_targets[*]} " in
@@ -56,6 +58,7 @@ for target in "${targets[@]}"; do
   echo "Building ${tag} from benchmarks/container/Containerfile"
   "${runtime}" build \
     --build-arg "BASE_IMAGE_REPO=${base_repo}" \
+    --build-arg "OSU_VERSION=${osu_version}" \
     --target "${target}" \
     -f benchmarks/container/Containerfile \
     -t "${tag}" \
