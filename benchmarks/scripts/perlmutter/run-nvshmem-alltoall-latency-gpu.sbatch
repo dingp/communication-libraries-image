@@ -18,10 +18,6 @@ NVSHMEM_TEST="${NVSHMEM_TEST:-/opt/nvshmem/bin/perftest/device/coll/alltoall_lat
 
 mkdir -p "${RESULT_DIR}"
 
-if ! command -v podman-hpc >/dev/null 2>&1 && command -v module >/dev/null 2>&1; then
-  module load podman-hpc
-fi
-
 CXI_MOUNTS=()
 GPU_MOUNTS=()
 NVIDIA_LIBRARY_MOUNTS=()

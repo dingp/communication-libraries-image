@@ -18,10 +18,6 @@ RUN_DEGRADED="${RUN_DEGRADED:-1}"
 
 mkdir -p "${RESULT_DIR}"
 
-if ! command -v podman-hpc >/dev/null 2>&1 && command -v module >/dev/null 2>&1; then
-  module load podman-hpc
-fi
-
 case "${MPI_IMPL}" in
   mpich|openmpi|openmpi-ofi-ucx) ;;
   *)

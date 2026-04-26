@@ -17,10 +17,6 @@ WORKDIR="${WORKDIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 TASKS_PER_NODE="${TASKS_PER_NODE:-${SLURM_NTASKS_PER_NODE:-4}}"
 TASKS_PER_NODE="${TASKS_PER_NODE%%(*}"
 
-if ! command -v podman-hpc >/dev/null 2>&1 && command -v module >/dev/null 2>&1; then
-  module load podman-hpc
-fi
-
 CXI_MOUNTS=()
 GPU_MOUNTS=()
 NVIDIA_LIBRARY_MOUNTS=()
