@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/run-perlmutter.sh <cpu|gpu> <libfabric|mpich|openmpi|openmpi-ofi-ucx|cray-mpich|nccl|nvshmem> [image] [-- command...]
+  scripts/run-perlmutter.sh <cpu|gpu> <libfabric|mpich|openmpi|openmpi-ofi-ucx|nccl|nvshmem> [image] [-- command...]
 
 Examples:
   scripts/run-perlmutter.sh cpu mpich
@@ -72,10 +72,6 @@ case "${stack}" in
     ;;
   openmpi-ofi-ucx)
     default_target="openmpi-ofi-ucx-${suffix}"
-    default_command=(python3 /workspace/tests/mpi4py_hello.py)
-    ;;
-  cray-mpich)
-    default_target="cray-mpich-${suffix}"
     default_command=(python3 /workspace/tests/mpi4py_hello.py)
     ;;
   nccl)

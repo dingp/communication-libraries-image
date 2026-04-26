@@ -21,18 +21,29 @@ Public-source targets in `container/Containerfile`:
 | `nccl-gpu` | GPU | `libfabric-gpu`, NCCL, AWS OFI NCCL plugin, and single-process NCCL tests built without MPI |
 | `nvshmem-gpu` | GPU | `nccl-gpu` plus CUDA 13 NVSHMEM packages, PMIx/libfabric runtime settings, and an NVSHMEM hello test |
 
-The Cray MPICH example is in `container/cray-mpich-cpe.Containerfile`. It is intentionally separate because HPE Cray MPICH is delivered through HPE CPE package repositories or site mirrors, not public source tarballs.
-
 ## Per-Target Containerfiles
 
-The source of truth is the multi-stage `container/Containerfile`. For easier reading and CI builds, generate one buildable file per named target under `container/targets/`:
+The source of truth is the multi-stage `container/Containerfile`. For easier reading and CI builds, the repository also carries one buildable Containerfile per named target under `container/targets/`.
+
+The generator is `scripts/generate-target-containerfiles.py`. It parses named `FROM ... AS ...` stages from `container/Containerfile`, follows the parent-stage dependency closure for each target, and writes a single-target file containing only the top-level build arguments and the ancestor stages needed for that target. For example, `container/targets/mpich-gpu.Containerfile` contains `gpu-base`, `libfabric-gpu`, and `mpich-gpu`, but omits unrelated OpenMPI, NCCL, and NVSHMEM stages.
+
+Useful commands:
 
 ```bash
+# List all named stages.
+scripts/generate-target-containerfiles.py --list
+
+# Regenerate every per-target file under container/targets/.
 scripts/generate-target-containerfiles.py
+
+# Regenerate one target.
+scripts/generate-target-containerfiles.py --target mpich-gpu
+
+# Check that generated files are up to date. GitHub Actions runs this.
 scripts/generate-target-containerfiles.py --check
 ```
 
-Each generated file contains the top-level build arguments plus only the ancestor stages needed for that final target. For example, `container/targets/mpich-gpu.Containerfile` contains `gpu-base`, `libfabric-gpu`, and `mpich-gpu`, but omits the unrelated OpenMPI, NCCL, and NVSHMEM stages.
+`scripts/build.sh` and the GitHub Actions matrix build from `container/targets/<target>.Containerfile` directly. Edit `container/Containerfile`, regenerate, and commit both the source and generated files.
 
 ## Stack Relationships
 
@@ -143,7 +154,6 @@ Dedicated notes are in `docs/`:
 | PMIx | [`docs/pmix.md`](docs/pmix.md) |
 | MPI | [`docs/mpi.md`](docs/mpi.md) |
 | MPICH | [`docs/mpich.md`](docs/mpich.md) |
-| Cray MPICH | [`docs/cray-mpich.md`](docs/cray-mpich.md) |
 | OpenMPI | [`docs/openmpi.md`](docs/openmpi.md) |
 | NCCL | [`docs/nccl.md`](docs/nccl.md) |
 | OpenSHMEM | [`docs/openshmem.md`](docs/openshmem.md) |
@@ -174,7 +184,34 @@ scripts/build.sh --build-arg CUDA_VERSION=13.0.0 mpich-gpu
 
 ## Perlmutter Runs
 
-These scripts do not use podman-hpc `--mpi` or `--cuda-mpi`. MPI, libfabric, and CXI userspace components are in the image. Slurm launch uses PMIx only, and `podman-hpc shared-run` is used so each node starts one container and Slurm ranks exec into it:
+These examples do not use podman-hpc `--mpi` or `--cuda-mpi`. MPI, libfabric, CXI, and GPU communication libraries are in the image. Slurm provides launch and PMIx wire-up, and `podman-hpc shared-run` starts one container per node.
+
+The directory `scripts/perlmutter-images/` contains standalone `sbatch` scripts, one per published image. Each file contains the flattened `srun ... podman-hpc shared-run` command and can be copied into an application repository. Use `scripts/run-perlmutter.sh` for day-to-day repo testing; use the standalone scripts when documenting or adapting a single image for an end-user workflow.
+
+### Standalone Scripts
+
+Each script has default `#SBATCH` settings, a default image tag, and a simple smoke-test command. Copy the script for the image you use, edit the `#SBATCH` lines and `APP_COMMAND`, then submit it with `sbatch`.
+
+| Image tag | Script | Submit example |
+| --- | --- |
+| `libfabric-cpu` | `scripts/perlmutter-images/run-libfabric-cpu.sbatch` | `sbatch scripts/perlmutter-images/run-libfabric-cpu.sbatch` |
+| `libfabric-gpu` | `scripts/perlmutter-images/run-libfabric-gpu.sbatch` | `sbatch scripts/perlmutter-images/run-libfabric-gpu.sbatch` |
+| `mpich-cpu` | `scripts/perlmutter-images/run-mpich-cpu.sbatch` | `sbatch scripts/perlmutter-images/run-mpich-cpu.sbatch` |
+| `mpich-gpu` | `scripts/perlmutter-images/run-mpich-gpu.sbatch` | `sbatch scripts/perlmutter-images/run-mpich-gpu.sbatch` |
+| `openmpi-cpu` | `scripts/perlmutter-images/run-openmpi-cpu.sbatch` | `sbatch scripts/perlmutter-images/run-openmpi-cpu.sbatch` |
+| `openmpi-gpu` | `scripts/perlmutter-images/run-openmpi-gpu.sbatch` | `sbatch scripts/perlmutter-images/run-openmpi-gpu.sbatch` |
+| `openmpi-ofi-ucx-cpu` | `scripts/perlmutter-images/run-openmpi-ofi-ucx-cpu.sbatch` | `sbatch scripts/perlmutter-images/run-openmpi-ofi-ucx-cpu.sbatch` |
+| `openmpi-ofi-ucx-gpu` | `scripts/perlmutter-images/run-openmpi-ofi-ucx-gpu.sbatch` | `sbatch scripts/perlmutter-images/run-openmpi-ofi-ucx-gpu.sbatch` |
+| `nccl-gpu` | `scripts/perlmutter-images/run-nccl-gpu.sbatch` | `sbatch scripts/perlmutter-images/run-nccl-gpu.sbatch` |
+| `nvshmem-gpu` | `scripts/perlmutter-images/run-nvshmem-gpu.sbatch` | `sbatch scripts/perlmutter-images/run-nvshmem-gpu.sbatch` |
+
+Override the application command without editing the script:
+
+```bash
+APP_COMMAND='./my_app --input input.toml' sbatch --export=ALL scripts/perlmutter-images/run-openmpi-ofi-ucx-gpu.sbatch
+```
+
+The repository wrapper commands are shorter and use the same runtime shape:
 
 ```bash
 scripts/run-perlmutter.sh cpu mpich
@@ -210,5 +247,3 @@ ghcr.io/dingp/communication-libraries-image:openmpi-ofi-ucx-gpu
 ghcr.io/dingp/communication-libraries-image:nccl-gpu
 ghcr.io/dingp/communication-libraries-image:nvshmem-gpu
 ```
-
-Cray MPICH builds require HPE CPE repository access. See `docs/cray-mpich.md`.

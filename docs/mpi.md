@@ -20,7 +20,6 @@ application
 MPI implementations:
 
 - [MPICH](mpich.md) uses CH4/OFI.
-- [Cray MPICH](cray-mpich.md) is documented as a site-repository package example.
 - [OpenMPI](openmpi.md) uses OFI by default and has an optional OFI+UCX build.
 
 Run-time launch still comes from Slurm:
