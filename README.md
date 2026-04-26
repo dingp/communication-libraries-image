@@ -270,7 +270,20 @@ INSTALL_ROOT=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-make
   scripts/perlmutter-tools/build-podman-5.8.2.sh
 ```
 
-See [`docs/podman-backend.md`](docs/podman-backend.md) for the PMIx `--userns=keep-id` comparison, direct compute-node reproducer, overlay-shifting comparison, and bind-mount ownership test.
+For group-protected host bind mounts under `--userns=keep-id`, Podman/crun can preserve the submitting user's supplemental host groups with:
+
+```bash
+podman-hpc run --rm --privileged --userns=keep-id --group-add keep-groups ...
+```
+
+The diagnostic wrapper can test both normal writable bind mounts and a directory writable only through a supplemental group:
+
+```bash
+sbatch --export=ALL,PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-make-accessible/bin/podman,GROUP_WRITE_TEST_DIR=<group-writable-host-dir> \
+  scripts/perlmutter-tools/test-podman-keepid-bindmount.sbatch
+```
+
+See [`docs/podman-backend.md`](docs/podman-backend.md) for the PMIx `--userns=keep-id` comparison, direct compute-node reproducer, overlay-shifting comparison, bind-mount ownership test, and supplemental-group findings.
 The direct run and bind-mount wrappers are:
 
 ```bash

@@ -211,6 +211,46 @@ On the host, those same files were owned by a high subordinate UID/GID with no l
 That confirms a real bind-mount ownership hazard: avoid using `--user 0:0` or arbitrary container UID/GID values with writable host bind mounts under `--userns=keep-id` unless the resulting host ownership is understood and acceptable.
 For normal end-user workflows that use the default `keep-id` user, the bind-mount write test preserved the submitting user's host UID/GID.
 
+## Supplemental Groups For Bind Mounts
+
+Some Perlmutter project directories are writable because the user is a member of a supplemental host group, not because the path is owned by the user's primary GID.
+Under `--userns=keep-id`, a container process may keep only the primary UID/GID unless the OCI runtime is told to preserve the original supplemental groups.
+
+Podman already exposes the needed crun feature:
+
+```bash
+podman-hpc run --rm --privileged --userns=keep-id --group-add keep-groups \
+  -v <group-writable-host-dir>:/work:rw ubuntu:latest ...
+```
+
+`--group-add keep-groups` sets Podman's `run.oci.keep_original_groups` annotation.
+It is intentionally different from adding a numeric group ID to the OCI spec: the host supplemental groups are kept by the runtime, while unmapped group IDs may still appear inside the container as the overflow group, often `65534` or `nogroup`.
+That display is expected and does not mean the kernel permission check failed.
+
+The bind-mount diagnostic can test this directly:
+
+```bash
+sbatch --export=ALL,PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-make-accessible/bin/podman,GROUP_WRITE_TEST_DIR=<host-dir-writable-only-through-a-supplemental-group> \
+  scripts/perlmutter-tools/test-podman-keepid-bindmount.sbatch
+```
+
+On 2026-04-26, using the `makeAccessible()` Podman 5.8.2 build on a Perlmutter CPU node:
+
+| Case | Result |
+| --- | --- |
+| `--userns=keep-id` without `--group-add keep-groups` | Writing to a group-gated CFS directory failed with `Permission denied`. |
+| `--userns=keep-id --group-add keep-groups` | The same write succeeded. |
+
+In that test, `id` inside the container showed the additional group as `65534(nogroup)` because the host supplemental GID was not mapped into the container user namespace.
+The created file still appeared on the host with the expected project-group ownership due to the host directory's setgid bit.
+
+The proposed implementation for Perlmutter wrappers is therefore:
+
+- Keep the `makeAccessible()` style path-access fix for the direct `podman-hpc run --userns=keep-id` rootfs-open failure.
+- Add an opt-in `--group-add keep-groups` path for `--userns=keep-id` jobs that bind mount group-protected host directories.
+- Do not translate all host supplemental groups into explicit OCI `additionalGids`; high and non-contiguous site group IDs are exactly where ID-map and ownership behavior becomes fragile.
+- Keep it opt-in or clearly documented because `keep-groups` is crun-specific and is exclusive with other `--group-add` values.
+
 ## Overlay Shifting Comparison
 
 The force-shifting patch does not apply the same way across the tested Podman versions because the vendored storage driver changed.
