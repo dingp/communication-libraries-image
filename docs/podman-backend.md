@@ -34,6 +34,47 @@ containers_image_openpgp exclude_graphdriver_btrfs exclude_graphdriver_devicemap
 
 If `libseccomp` development files are available, the script also adds the `seccomp` build tag.
 
+## Local Passt/Pasta Build
+
+Perlmutter's site RPM currently provides:
+
+```text
+pasta 2024_11_27.c0fbc7e-101445
+passt 2024_11_27.c0fbc7e-101445
+```
+
+Upstream's latest tagged release checked on 2026-04-26 was:
+
+```text
+2026_01_20.386b5f5
+```
+
+Build and install it under `$SCRATCH` with:
+
+```bash
+scripts/perlmutter-tools/build-passt.sh
+```
+
+Default install location:
+
+```text
+$SCRATCH/communication-libraries-image/podman-alt/passt-2026_01_20.386b5f5/install/bin
+```
+
+Use the scratch helper with either site Podman or the local Podman 5.8.2 backend:
+
+```bash
+export CONTAINERS_HELPER_BINARY_DIR=$SCRATCH/communication-libraries-image/podman-alt/passt-2026_01_20.386b5f5/install/bin
+```
+
+For the local Podman backend, also set:
+
+```bash
+export PODMANHPC_PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2/bin/podman
+```
+
+Podman searches `CONTAINERS_HELPER_BINARY_DIR` before configured helper directories and `$PATH`, so this is a non-invasive way to test a newer `pasta` without replacing the site RPM.
+
 ## Optional Force-Shifting Build
 
 For debugging rootless overlay ownership behavior with host bind mounts, the same build helper can apply a small local patch to the vendored storage driver in Podman v5.8.2:
@@ -269,6 +310,18 @@ The script runs both serial single-curl downloads and concurrent curl batches th
 - direct host `curl`, unless `--no-host-baseline` is passed
 
 It writes raw logs, `results.csv`, `summary.csv`, and `report.md` under `$SCRATCH/communication-libraries-image/podman-network-curl/<timestamp>` by default.
+
+On login07 on 2026-04-26, using the reduced pasta-only test with 3 serial downloads and one 8-way parallel batch:
+
+| Podman backend | Pasta helper | Single avg | Parallel aggregate |
+| --- | --- | ---: | ---: |
+| site Podman 5.3.2 | site `pasta 2024_11_27.c0fbc7e-101445` | 472.2 MB/s | 830.5 MB/s |
+| site Podman 5.3.2 | scratch `pasta 2026_01_20.386b5f5` | 709.7 MB/s | 955.2 MB/s |
+| scratch Podman 5.8.2 | site `pasta 2024_11_27.c0fbc7e-101445` | 488.7 MB/s | 897.9 MB/s |
+| scratch Podman 5.8.2 | scratch `pasta 2026_01_20.386b5f5` | 729.0 MB/s | 934.5 MB/s |
+
+The faster single-curl result follows the newer pasta helper in both Podman backends.
+The 8-way parallel result also improved for site Podman with the newer helper, while the scratch Podman 5.8.2 numbers were close between the two pasta versions in this short run.
 
 ## Overlay Shifting Comparison
 

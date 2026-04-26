@@ -252,6 +252,15 @@ scripts/perlmutter-tools/build-podman-5.8.2.sh
 export PODMANHPC_PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2/bin/podman
 ```
 
+To test a newer `passt`/`pasta` helper with either the site Podman or the local Podman build:
+
+```bash
+scripts/perlmutter-tools/build-passt.sh
+export CONTAINERS_HELPER_BINARY_DIR=$SCRATCH/communication-libraries-image/podman-alt/passt-2026_01_20.386b5f5/install/bin
+```
+
+Podman searches `CONTAINERS_HELPER_BINARY_DIR` before the system helper directories, so this changes which `pasta` binary is used without replacing `/usr/bin/pasta`.
+
 For overlay shifting diagnostics with non-contiguous rootless UID/GID maps, the same helper can build a patched comparison binary:
 
 ```bash

@@ -338,8 +338,18 @@ collect_metadata() {
     echo "connect_timeout=${CONNECT_TIMEOUT}"
     echo "max_time=${MAX_TIME}"
     echo "podman_hpc=${PODMANHPC}"
+    echo "podman_hpc_podman_bin=${PODMANHPC_PODMAN_BIN:-}"
+    echo "containers_helper_binary_dir=${CONTAINERS_HELPER_BINARY_DIR:-}"
     if command -v "${PODMANHPC}" >/dev/null 2>&1; then
       echo "podman_hpc_version=$("${PODMANHPC}" --version 2>/dev/null || true)"
+    fi
+    if [[ -n "${PODMANHPC_PODMAN_BIN:-}" && -x "${PODMANHPC_PODMAN_BIN}" ]]; then
+      echo "podman_hpc_backend_version=$("${PODMANHPC_PODMAN_BIN}" --version 2>/dev/null || true)"
+      echo "podman_hpc_backend_pasta=$("${PODMANHPC_PODMAN_BIN}" info --format '{{.Host.Pasta.Executable}} {{.Host.Pasta.Version}}' 2>/dev/null | sed -n '1p' || true)"
+      echo "podman_hpc_backend_rootless_network_cmd=$("${PODMANHPC_PODMAN_BIN}" info --format '{{.Host.RootlessNetworkCmd}}' 2>/dev/null || true)"
+    fi
+    if [[ -n "${CONTAINERS_HELPER_BINARY_DIR:-}" && -x "${CONTAINERS_HELPER_BINARY_DIR}/pasta" ]]; then
+      echo "helper_pasta_version=$("${CONTAINERS_HELPER_BINARY_DIR}/pasta" --version 2>/dev/null | sed -n '1p' || true)"
     fi
     if command -v podman >/dev/null 2>&1; then
       echo "podman_version=$(podman --version 2>/dev/null || true)"
@@ -430,7 +440,13 @@ for key in [
     "connect_timeout",
     "max_time",
     "podman_hpc",
+    "podman_hpc_podman_bin",
+    "containers_helper_binary_dir",
     "podman_hpc_version",
+    "podman_hpc_backend_version",
+    "podman_hpc_backend_pasta",
+    "podman_hpc_backend_rootless_network_cmd",
+    "helper_pasta_version",
     "podman_version",
     "podman_rootless_network_cmd",
     "podman_network_backend",
