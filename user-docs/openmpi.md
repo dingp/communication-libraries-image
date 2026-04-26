@@ -103,6 +103,31 @@ fi_getinfo: -61 (No data available)
 Use the CXI path unless you are intentionally debugging LINKx.
 The benchmark script has an opt-in `RUN_LNX=1` diagnostic for that purpose.
 
+## OB1 Shared-Memory Option
+
+OpenMPI can also use shared memory without LINKx by switching from the `cm` PML to the `ob1` PML and composing BTLs:
+
+```bash
+PMIX_MCA_psec=native
+FI_PROVIDER=cxi
+OMPI_MCA_pml=ob1
+OMPI_MCA_btl=self,sm,ofi
+OMPI_MCA_btl_ofi_mode=1
+OMPI_MCA_btl_ofi_provider_include=cxi
+OMPI_MCA_smsc=xpmem,cma
+```
+
+For CUDA-buffer experiments, include `smcuda`:
+
+```bash
+OMPI_MCA_btl=self,sm,smcuda,ofi
+```
+
+This is not the default runtime path.
+It can improve same-node host-buffer traffic by using OpenMPI's shared-memory BTL, but the tested OFI BTL off-node path is much slower than the default `cm`/`mtl/ofi` path.
+The tested `smcuda` path was also slower than the default CXI path for CUDA buffers.
+Use this only when the application is dominated by same-node host-buffer MPI traffic, or as a diagnostic for shared-memory behavior.
+
 ## mpi4py Test
 
 The default MPICH and OpenMPI scripts run:
@@ -120,6 +145,23 @@ For the OpenMPI results, "intra-node" means the two ranks were placed on one nod
 It does not mean OpenMPI used its shared-memory BTL path.
 The benchmark script sets `OMPI_MCA_pml=cm`, `OMPI_MCA_mtl=ofi`, and `FI_PROVIDER=cxi`, so both inter-node and intra-node MPI traffic use OpenMPI's OFI MTL over libfabric's CXI provider.
 This is why OpenMPI intra-node bandwidth is much lower than the MPICH intra-node result, where MPICH was built with `--with-xpmem=/usr` and can use its CH4 shared-memory/XPMEM path for same-node ranks.
+
+A focused `ob1`/BTL experiment was also run with `bench-openmpi-ofi-ucx-*` images.
+The host-buffer same-node cases improved, but off-node `ob1`/OFI bandwidth was much lower than the default `cm`/OFI path, and CUDA-buffer `smcuda` did not improve the same-node result.
+
+| Node type | Runtime path | Placement | Buffer | Best result |
+| --- | --- | --- | --- | --- |
+| CPU | `cm` + `mtl/ofi` + `cxi` | 1 CPU node, 2 ranks | host | 23,336.66 MB/s at 4 MiB |
+| CPU | `ob1` + `self,sm,ofi` | 1 CPU node, 2 ranks | host | 47,035.04 MB/s at 128 KiB |
+| CPU | `ob1` + `self,sm,ofi` | 2 CPU nodes, 2 ranks | host | 3,733.96 MB/s at 512 KiB |
+| GPU | `cm` + `mtl/ofi` + `cxi` | 1 GPU node, 2 ranks | host | 24,048.03 MB/s at 4 MiB |
+| GPU | `ob1` + `self,sm,ofi` | 1 GPU node, 2 ranks | host | 40,628.51 MB/s at 2 MiB |
+| GPU | `ob1` + `self,sm,ofi` | 2 GPU nodes, 2 ranks | host | 4,106.17 MB/s at 1 MiB |
+| GPU | `cm` + `mtl/ofi` + `cxi` | 1 GPU node, 2 ranks | CUDA | 24,238.85 MB/s at 4 MiB |
+| GPU | `ob1` + `self,sm,smcuda,ofi` | 1 GPU node, 2 ranks | CUDA | 10,344.34 MB/s at 4 MiB |
+| GPU | `ob1` + `self,sm,smcuda,ofi` | 2 GPU nodes, 2 ranks | CUDA | 3,987.26 MB/s at 1 MiB |
+
+The detailed snapshot is in [`benchmarks/reports/perlmutter-openmpi-ob1-btl-20260426.md`](../benchmarks/reports/perlmutter-openmpi-ob1-btl-20260426.md).
 
 CPU results:
 

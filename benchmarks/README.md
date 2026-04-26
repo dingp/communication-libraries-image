@@ -143,3 +143,8 @@ The parser recognizes:
 | OSU | `osu_bw` bandwidth tables and `osu_alltoall` latency tables |
 | NCCL | `all_reduce_perf` out-of-place and in-place bandwidth tables |
 | NVSHMEM | `alltoall_latency` device latency and bandwidth tables |
+
+Committed benchmark snapshots:
+
+- [`reports/perlmutter-20260426T072155Z.md`](reports/perlmutter-20260426T072155Z.md): baseline MPICH, OpenMPI, NCCL, and NVSHMEM results.
+- [`reports/perlmutter-openmpi-ob1-btl-20260426.md`](reports/perlmutter-openmpi-ob1-btl-20260426.md): focused OpenMPI `ob1`/BTL shared-memory experiment.
