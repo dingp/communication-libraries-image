@@ -45,7 +45,8 @@ OSU_VERSION=7.5.2 benchmarks/scripts/build.sh bench-openmpi-gpu
 
 ## Run On Perlmutter
 
-Each script writes one log file per benchmark case under `benchmarks/results/$SLURM_JOB_ID`.
+Each script writes Slurm stdout/stderr under `$SCRATCH/communication-libraries-image/slurm` and one log file per benchmark case under `$SCRATCH/communication-libraries-image/benchmarks/results/$SLURM_JOB_ID`.
+Override `JOB_OUTPUT_DIR` or `RESULT_ROOT` if you want a different scratch location.
 Before submitting, replace `#SBATCH --account=YOUR_NERSC_ACCOUNT` with your allocation account.
 
 Run MPICH OSU `osu_bw` host-buffer tests on CPU nodes:
@@ -94,8 +95,8 @@ IMAGE=localhost/communication-libraries-image:bench-openmpi-ofi-ucx-gpu \
 Generate a Markdown report from a result directory:
 
 ```bash
-benchmarks/scripts/process-results.py benchmarks/results/<jobid> \
-  -o benchmarks/results/<jobid>/report.md
+benchmarks/scripts/process-results.py "$SCRATCH/communication-libraries-image/benchmarks/results/<jobid>" \
+  -o "$SCRATCH/communication-libraries-image/benchmarks/results/<jobid>/report.md"
 ```
 
 The parser recognizes:

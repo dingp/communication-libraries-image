@@ -7,13 +7,19 @@
 #SBATCH --constraint=gpu
 #SBATCH --qos=debug
 #SBATCH --time=00:15:00
-#SBATCH --output=nvshmem-alltoall-%j.out
+#SBATCH --output=/dev/null
 
 set -euo pipefail
 
+: "${SCRATCH:?SCRATCH must point to Perlmutter scratch}"
+JOB_OUTPUT_DIR="${JOB_OUTPUT_DIR:-${SCRATCH}/communication-libraries-image/slurm}"
+mkdir -p "${JOB_OUTPUT_DIR}"
+exec > >(tee -a "${JOB_OUTPUT_DIR}/${SLURM_JOB_NAME:-job}-${SLURM_JOB_ID:-manual}.out") 2>&1
+
 IMAGE="${IMAGE:-ghcr.io/dingp/communication-libraries-image:bench-nvshmem-gpu}"
 WORKDIR="${WORKDIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
-RESULT_DIR="${RESULT_DIR:-${WORKDIR}/benchmarks/results/${SLURM_JOB_ID:-manual}}"
+RESULT_ROOT="${RESULT_ROOT:-${SCRATCH}/communication-libraries-image/benchmarks/results}"
+RESULT_DIR="${RESULT_DIR:-${RESULT_ROOT}/${SLURM_JOB_ID:-manual}}"
 NVSHMEM_TEST="${NVSHMEM_TEST:-/opt/nvshmem/bin/perftest/device/coll/alltoall_latency}"
 
 mkdir -p "${RESULT_DIR}"

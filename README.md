@@ -244,7 +244,8 @@ CSCS-style benchmark support is under `benchmarks/`. It includes benchmark image
 ```bash
 benchmarks/scripts/build.sh bench-openmpi-ofi-ucx-gpu
 MPI_IMPL=openmpi-ofi-ucx sbatch --export=ALL benchmarks/scripts/perlmutter/run-mpi-osu-gpu.sbatch
-benchmarks/scripts/process-results.py benchmarks/results/<jobid> -o benchmarks/results/<jobid>/report.md
+benchmarks/scripts/process-results.py "$SCRATCH/communication-libraries-image/benchmarks/results/<jobid>" \
+  -o "$SCRATCH/communication-libraries-image/benchmarks/results/<jobid>/report.md"
 ```
 
 See [`benchmarks/README.md`](benchmarks/README.md) for the benchmark matrix.

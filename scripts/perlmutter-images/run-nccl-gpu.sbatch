@@ -7,9 +7,14 @@
 #SBATCH --constraint=gpu
 #SBATCH --qos=debug
 #SBATCH --time=00:10:00
-#SBATCH --output=nccl-gpu-%j.out
+#SBATCH --output=/dev/null
 
 set -euo pipefail
+
+: "${SCRATCH:?SCRATCH must point to Perlmutter scratch}"
+JOB_OUTPUT_DIR="${JOB_OUTPUT_DIR:-${SCRATCH}/communication-libraries-image/slurm}"
+mkdir -p "${JOB_OUTPUT_DIR}"
+exec > >(tee -a "${JOB_OUTPUT_DIR}/${SLURM_JOB_NAME:-job}-${SLURM_JOB_ID:-manual}.out") 2>&1
 
 IMAGE="${IMAGE:-ghcr.io/dingp/communication-libraries-image:nccl-gpu}"
 APP_COMMAND="${APP_COMMAND:-/opt/nccl-tests/build/all_reduce_perf -b 8 -e 128M -f 2 -g 1}"

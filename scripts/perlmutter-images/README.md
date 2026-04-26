@@ -9,6 +9,7 @@ sbatch run-mpich-gpu.sbatch
 ```
 
 Before submitting, replace `#SBATCH --account=YOUR_NERSC_ACCOUNT` with your allocation account.
+The scripts require `$SCRATCH` and write Slurm stdout/stderr to `$SCRATCH/communication-libraries-image/slurm`; override `JOB_OUTPUT_DIR` to use another scratch directory.
 
 Override the application command without editing the script:
 
