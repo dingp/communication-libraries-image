@@ -118,5 +118,15 @@ Build that local Podman with:
 scripts/perlmutter-tools/build-podman-5.8.2.sh
 ```
 
+For a diagnostic build that forces overlay shifting when rootless UID/GID maps are non-contiguous:
+
+```bash
+APPLY_FORCE_SHIFTING_PATCH=1 \
+INSTALL_ROOT=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-force-shifting \
+  scripts/perlmutter-tools/build-podman-5.8.2.sh
+export PODMANHPC_PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-force-shifting/bin/podman
+export _CONTAINERS_FORCE_SHIFTING=1
+```
+
 On 2026-04-26, a two-node CPU `mpi4py` test showed that the scratch-built Podman 5.8.2 works with `podman-hpc shared-run`, Slurm PMIx, and `--userns=keep-id`.
 The focused reproducer did not show a deterministic `--userns=keep-id` failure with the site Podman 5.3.2, but the local Podman 5.8.2 build is a useful comparison backend when diagnosing Podman runtime issues.

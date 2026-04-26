@@ -252,7 +252,17 @@ scripts/perlmutter-tools/build-podman-5.8.2.sh
 export PODMANHPC_PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2/bin/podman
 ```
 
-See [`docs/podman-backend.md`](docs/podman-backend.md) for the PMIx `--userns=keep-id` comparison.
+For overlay shifting diagnostics with non-contiguous rootless UID/GID maps, the same helper can build a patched comparison binary:
+
+```bash
+APPLY_FORCE_SHIFTING_PATCH=1 \
+INSTALL_ROOT=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-force-shifting \
+  scripts/perlmutter-tools/build-podman-5.8.2.sh
+export PODMANHPC_PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2-force-shifting/bin/podman
+export _CONTAINERS_FORCE_SHIFTING=1
+```
+
+See [`docs/podman-backend.md`](docs/podman-backend.md) for the PMIx `--userns=keep-id` comparison and the Podman 4.7.0, 5.3.2, and 5.8.2 overlay-shifting comparison.
 
 For GPU runs, bind the complete host NVIDIA driver library set, not only `libcuda`. The script binds `/usr/lib64/libcuda*`, `/usr/lib64/libnvidia*`, and `/usr/bin/nvidia-smi`; this keeps the driver JIT and NVML libraries matched to the Perlmutter 580.105.08 host driver while the image carries the CUDA 13.2 user-space toolkit.
 
