@@ -245,6 +245,15 @@ The run script currently passes the PMIx and CXI runtime environment explicitly.
 PODMANHPC_PMIX_HELPER=module scripts/run-perlmutter.sh gpu openmpi
 ```
 
+For Podman backend debugging, build a local Podman 5.8.2 under `$SCRATCH` and point `podman-hpc` at it:
+
+```bash
+scripts/perlmutter-tools/build-podman-5.8.2.sh
+export PODMANHPC_PODMAN_BIN=$SCRATCH/communication-libraries-image/podman-alt/podman-5.8.2/bin/podman
+```
+
+See [`docs/podman-backend.md`](docs/podman-backend.md) for the PMIx `--userns=keep-id` comparison.
+
 For GPU runs, bind the complete host NVIDIA driver library set, not only `libcuda`. The script binds `/usr/lib64/libcuda*`, `/usr/lib64/libnvidia*`, and `/usr/bin/nvidia-smi`; this keeps the driver JIT and NVML libraries matched to the Perlmutter 580.105.08 host driver while the image carries the CUDA 13.2 user-space toolkit.
 
 ## Benchmarks
