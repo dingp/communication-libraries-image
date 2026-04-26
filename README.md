@@ -56,12 +56,14 @@ The main layers are:
 | CXI | Userspace access to the HPE Slingshot Cassini NIC. | Host kernel device files such as `/dev/cxi*`, libcxi ioctls, NIC command queues, completion queues, memory registration, and hardware offload. |
 | OFI | A provider-neutral network API used by MPI, NCCL plugins, and PGAS libraries. | The libfabric API exposes endpoints, address vectors, completion queues, scalable endpoints, tagged messaging, RMA, atomics, and provider selection through `FI_PROVIDER=cxi`. |
 | libfabric | The implementation of OFI and the container entry point to the CXI provider. | Provider plugins, memory registration cache, XPMEM-assisted intra-node paths, and optional CUDA/GDRCopy memory support in GPU images. |
+| XPMEM | Intra-node cross-process memory mapping used by shared-memory and libfabric paths. | Host `/dev/xpmem`, make/get/attach/detach handles, process-to-process mappings, and low-copy host-memory transfers within a node. |
 | UCX | A communication framework used by OpenMPI components and OpenSHMEM. | Transport selection, active messages, RMA, tagged operations, shared memory transports, CUDA memory hooks, and optional GPUDirect-style paths. |
 | PMIx | Process-management wire-up between Slurm and ranks inside the container. | Slurm hosts the PMIx server, the image carries the OpenPMIx client, and ranks exchange job metadata, endpoints, namespaces, and local topology. |
 | MPI | The application-facing distributed-memory programming model. | Point-to-point messages, collectives, communicators, derived datatypes, one-sided RMA, and launcher integration through PMIx. |
 | MPICH | MPI implementation used for CH4/OFI examples. | The CH4 device uses the OFI netmod, which maps MPI operations onto libfabric endpoints and the `cxi` provider. |
 | OpenMPI | MPI and OpenSHMEM implementation used for the combined examples. | Modular components select the runtime path: `pml/cm` plus `mtl/ofi` for MPI over OFI/CXI, and UCX components for optional MPI paths and OSHMEM. |
 | NCCL | GPU collective communication library. | CUDA kernels, topology-aware rings/trees, GPU buffers, and the AWS OFI NCCL plugin for Slingshot through libfabric/CXI. |
+| aws-ofi-nccl | NCCL network plugin that connects NCCL collectives to OFI/libfabric. | NCCL net-plugin callbacks, libfabric endpoints and completion queues, CXI provider selection, GPU-memory registration, and multi-NIC rank-to-CXI mapping. |
 | OpenSHMEM | Partitioned global address space model for symmetric-memory communication. | Processing elements, symmetric heaps, puts/gets, atomics, barriers, and OpenMPI OSHMEM SPML components, with UCX in the combined images. |
 | NVSHMEM | GPU-resident SHMEM programming model. | Symmetric GPU memory, device-side puts/gets/atomics, CUDA streams, PMIx bootstrap, libfabric/CXI transport, and NCCL-assisted collectives where applicable. |
 
