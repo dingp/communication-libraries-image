@@ -16,3 +16,4 @@ This directory documents the communication stack pieces used by the image recipe
 | [NVSHMEM](nvshmem.md) | GPU SHMEM runtime built on libfabric, PMIx, NCCL, and CUDA |
 | [Runtime](runtime.md) | Perlmutter run-time namespace, device, and environment requirements |
 | [Podman Backend](podman-backend.md) | Local Podman backend builds and PMIx keep-id observations |
+| [Podman Network Curl Report](podman-network-curl-report.md) | Login-node curl throughput results for site and scratch pasta helpers |

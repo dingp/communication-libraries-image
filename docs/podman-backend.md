@@ -323,6 +323,8 @@ On login07 on 2026-04-26, using the reduced pasta-only test with 3 serial downlo
 The faster single-curl result follows the newer pasta helper in both Podman backends.
 The 8-way parallel result also improved for site Podman with the newer helper, while the scratch Podman 5.8.2 numbers were close between the two pasta versions in this short run.
 
+A standalone copy of these numbers is in [`podman-network-curl-report.md`](podman-network-curl-report.md).
+
 ## Overlay Shifting Comparison
 
 The force-shifting patch does not apply the same way across the tested Podman versions because the vendored storage driver changed.
