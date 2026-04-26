@@ -378,8 +378,11 @@ ENV PMIX_MCA_psec=native
 
 FROM libfabric-gpu AS nccl-gpu
 
+ARG NCCL_PACKAGE_VERSION=2.29.7-1+cuda13.2
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libnccl2 libnccl-dev \
+    && apt-get install -y --no-install-recommends \
+        libnccl2=${NCCL_PACKAGE_VERSION} \
+        libnccl-dev=${NCCL_PACKAGE_VERSION} \
     && rm -rf /var/lib/apt/lists/*
 
 ARG AWS_OFI_NCCL_VERSION=1.19.0

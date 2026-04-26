@@ -182,6 +182,12 @@ Override CUDA:
 scripts/build.sh --build-arg CUDA_VERSION=13.0.0 mpich-gpu
 ```
 
+The NCCL image defaults to `NCCL_PACKAGE_VERSION=2.29.7-1+cuda13.2`, which is one of the NCCL versions tested with aws-ofi-nccl 1.19.0. Override it only when validating a newer NCCL package:
+
+```bash
+scripts/build.sh --build-arg NCCL_PACKAGE_VERSION=2.30.4-1+cuda13.2 nccl-gpu
+```
+
 ## Perlmutter Runs
 
 These examples do not use podman-hpc `--mpi` or `--cuda-mpi`. MPI, libfabric, CXI, and GPU communication libraries are in the image. Slurm provides launch and PMIx wire-up, and `podman-hpc shared-run` starts one container per node.

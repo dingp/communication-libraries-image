@@ -43,6 +43,12 @@ Override the OSU Micro-Benchmarks version when needed:
 OSU_VERSION=7.5.2 benchmarks/scripts/build.sh bench-openmpi-gpu
 ```
 
+Override the NCCL package when validating a different CUDA 13.2 NCCL build:
+
+```bash
+NCCL_PACKAGE_VERSION=2.30.4-1+cuda13.2 benchmarks/scripts/build.sh bench-nccl-gpu
+```
+
 ## Run On Perlmutter
 
 Each script writes Slurm stdout/stderr under `$SCRATCH/communication-libraries-image/slurm` and one log file per benchmark case under `$SCRATCH/communication-libraries-image/benchmarks/results/$SLURM_JOB_ID`.
@@ -93,7 +99,7 @@ GPU:         0     1     2     3
 CXI:         cxi3  cxi2  cxi1  cxi0
 ```
 
-The default can be changed with `CXI_DEVICE_MAP`. The script also defaults `NCCL_NET_GDR_LEVEL=LOC` and `NCCL_GDRCOPY_ENABLE=0` because the direct net-GDR path currently returns `FI_ENOSPC` in this containerized Perlmutter setup. Set `NCCL_NET_GDR_LEVEL=PHB NCCL_GDRCOPY_ENABLE=1` before `sbatch` when testing direct GPU-memory transport.
+The default can be changed with `CXI_DEVICE_MAP`. The script also defaults `NCCL_NET_GDR_LEVEL=LOC` and `NCCL_GDRCOPY_ENABLE=0` because the direct net-GDR path currently returns `FI_ENOSPC` in this containerized Perlmutter setup. This was reproduced with NCCL 2.29.7-1+cuda13.2 and 2.30.4-1+cuda13.2 when using aws-ofi-nccl 1.19.0. Set `NCCL_NET_GDR_LEVEL=PHB NCCL_GDRCOPY_ENABLE=1` before `sbatch` when testing direct GPU-memory transport.
 
 Run NVSHMEM device all-to-all latency on two GPU nodes:
 

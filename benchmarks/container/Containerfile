@@ -1,6 +1,7 @@
 ARG BASE_IMAGE_REPO=ghcr.io/dingp/communication-libraries-image
 ARG OSU_VERSION=7.5.2
 ARG AWS_OFI_NCCL_VERSION=1.19.0
+ARG NCCL_PACKAGE_VERSION=2.29.7-1+cuda13.2
 ARG NCCL_TESTS_VERSION=2.17.1
 
 FROM ${BASE_IMAGE_REPO}:mpich-cpu AS bench-mpich-cpu
@@ -107,9 +108,12 @@ WORKDIR /usr/local/libexec/osu-micro-benchmarks/mpi
 
 FROM ${BASE_IMAGE_REPO}:openmpi-ofi-ucx-gpu AS bench-nccl-gpu
 ARG AWS_OFI_NCCL_VERSION
+ARG NCCL_PACKAGE_VERSION
 ARG NCCL_TESTS_VERSION
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libnccl2 libnccl-dev \
+    && apt-get install -y --no-install-recommends \
+        libnccl2=${NCCL_PACKAGE_VERSION} \
+        libnccl-dev=${NCCL_PACKAGE_VERSION} \
     && rm -rf /var/lib/apt/lists/*
 RUN wget -q https://github.com/aws/aws-ofi-nccl/releases/download/v${AWS_OFI_NCCL_VERSION}/aws-ofi-nccl-${AWS_OFI_NCCL_VERSION}.tar.gz \
     && tar xf aws-ofi-nccl-${AWS_OFI_NCCL_VERSION}.tar.gz \

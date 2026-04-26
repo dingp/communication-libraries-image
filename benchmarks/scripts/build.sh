@@ -15,6 +15,9 @@ Environment:
   IMAGE_REPO         Repository for benchmark image tags. Default: localhost/communication-libraries-image
   BASE_IMAGE_REPO    Repository containing the base images. Default: ghcr.io/dingp/communication-libraries-image
   OSU_VERSION        OSU Micro-Benchmarks version. Default: 7.5.2
+  AWS_OFI_NCCL_VERSION  AWS OFI NCCL plugin version. Default: 1.19.0
+  NCCL_PACKAGE_VERSION  NCCL Debian package version. Default: 2.29.7-1+cuda13.2
+  NCCL_TESTS_VERSION    nccl-tests version. Default: 2.17.1
 USAGE
 }
 
@@ -43,6 +46,9 @@ runtime="${CONTAINER_BUILDER:-podman-hpc}"
 repo="${IMAGE_REPO:-localhost/communication-libraries-image}"
 base_repo="${BASE_IMAGE_REPO:-ghcr.io/dingp/communication-libraries-image}"
 osu_version="${OSU_VERSION:-7.5.2}"
+aws_ofi_nccl_version="${AWS_OFI_NCCL_VERSION:-1.19.0}"
+nccl_package_version="${NCCL_PACKAGE_VERSION:-2.29.7-1+cuda13.2}"
+nccl_tests_version="${NCCL_TESTS_VERSION:-2.17.1}"
 
 for target in "${targets[@]}"; do
   case " ${all_targets[*]} " in
@@ -59,6 +65,9 @@ for target in "${targets[@]}"; do
   "${runtime}" build \
     --build-arg "BASE_IMAGE_REPO=${base_repo}" \
     --build-arg "OSU_VERSION=${osu_version}" \
+    --build-arg "AWS_OFI_NCCL_VERSION=${aws_ofi_nccl_version}" \
+    --build-arg "NCCL_PACKAGE_VERSION=${nccl_package_version}" \
+    --build-arg "NCCL_TESTS_VERSION=${nccl_tests_version}" \
     --target "${target}" \
     -f benchmarks/container/Containerfile \
     -t "${tag}" \
