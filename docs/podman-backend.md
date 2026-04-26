@@ -251,6 +251,25 @@ The proposed implementation for Perlmutter wrappers is therefore:
 - Do not translate all host supplemental groups into explicit OCI `additionalGids`; high and non-contiguous site group IDs are exactly where ID-map and ownership behavior becomes fragile.
 - Keep it opt-in or clearly documented because `keep-groups` is crun-specific and is exclusive with other `--group-add` values.
 
+## Login-Node Network Curl Test
+
+Perlmutter's site Podman default rootless network command may differ across maintenance windows.
+The repository includes a login-node curl benchmark for checking the current default against explicit network modes:
+
+```bash
+scripts/perlmutter-tools/test-podman-network-curl.sh
+```
+
+The script runs both serial single-curl downloads and concurrent curl batches through:
+
+- podman-hpc default networking
+- explicit `--network=pasta`
+- explicit `--net slirp4netns`
+- explicit `--network=host`
+- direct host `curl`, unless `--no-host-baseline` is passed
+
+It writes raw logs, `results.csv`, `summary.csv`, and `report.md` under `$SCRATCH/communication-libraries-image/podman-network-curl/<timestamp>` by default.
+
 ## Overlay Shifting Comparison
 
 The force-shifting patch does not apply the same way across the tested Podman versions because the vendored storage driver changed.

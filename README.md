@@ -291,6 +291,14 @@ sbatch scripts/perlmutter-tools/test-podman-keepid-run.sbatch
 sbatch scripts/perlmutter-tools/test-podman-keepid-bindmount.sbatch
 ```
 
+For login-node Podman network throughput checks, run the reproducible curl benchmark:
+
+```bash
+scripts/perlmutter-tools/test-podman-network-curl.sh
+```
+
+It compares single and parallel curl downloads for default networking, explicit `pasta`, `slirp4netns`, `--network=host`, and a direct host curl baseline, then writes CSV files and `report.md` under `$SCRATCH/communication-libraries-image/podman-network-curl/`.
+
 For GPU runs, bind the complete host NVIDIA driver library set, not only `libcuda`. The script binds `/usr/lib64/libcuda*`, `/usr/lib64/libnvidia*`, and `/usr/bin/nvidia-smi`; this keeps the driver JIT and NVML libraries matched to the Perlmutter 580.105.08 host driver while the image carries the CUDA 13.2 user-space toolkit.
 
 ## Benchmarks
