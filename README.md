@@ -23,6 +23,17 @@ Public-source targets in `container/Containerfile`:
 
 The Cray MPICH example is in `container/cray-mpich-cpe.Containerfile`. It is intentionally separate because HPE Cray MPICH is delivered through HPE CPE package repositories or site mirrors, not public source tarballs.
 
+## Per-Target Containerfiles
+
+The source of truth is the multi-stage `container/Containerfile`. For easier reading and CI builds, generate one buildable file per named target under `container/targets/`:
+
+```bash
+scripts/generate-target-containerfiles.py
+scripts/generate-target-containerfiles.py --check
+```
+
+Each generated file contains the top-level build arguments plus only the ancestor stages needed for that final target. For example, `container/targets/mpich-gpu.Containerfile` contains `gpu-base`, `libfabric-gpu`, and `mpich-gpu`, but omits the unrelated OpenMPI, NCCL, and NVSHMEM stages.
+
 ## Stack Relationships
 
 These images keep the communication stack inside the container, while the host provides the kernel drivers, Slurm launch, and device files.

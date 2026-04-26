@@ -61,11 +61,16 @@ repo="${IMAGE_REPO:-localhost/communication-libraries-image}"
 
 for target in "${targets[@]}"; do
   tag="${repo}:${target}"
-  echo "Building ${tag} from target ${target}"
+  containerfile="container/targets/${target}.Containerfile"
+  if [[ ! -f "${containerfile}" ]]; then
+    echo "Missing ${containerfile}; run scripts/generate-target-containerfiles.py" >&2
+    exit 1
+  fi
+
+  echo "Building ${tag} from ${containerfile}"
   "${runtime}" build \
     "${build_args[@]}" \
-    --target "${target}" \
-    -f container/Containerfile \
+    -f "${containerfile}" \
     -t "${tag}" \
     .
 done

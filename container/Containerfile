@@ -285,7 +285,7 @@ RUN wget -q https://www.mpich.org/static/downloads/${MPICH_VERSION}/mpich-${MPIC
     && ./configure --prefix=/usr --enable-fast=O3,ndebug --enable-fortran --enable-cxx \
        --with-device=ch4:ofi --with-libfabric=/usr --with-xpmem=/usr \
        --with-pmi=pmix --with-pmix=/opt/pmix --with-pm=no \
-       --with-cuda=/usr/local/cuda \
+       --with-cuda=/usr/local/cuda --with-cuda-sm=80 \
        LIBS="-L/usr/local/cuda/targets/x86_64-linux/lib/stubs -lcuda" \
     && make -j$(nproc) \
     && make install \
