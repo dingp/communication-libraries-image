@@ -52,6 +52,7 @@ FI_UNIVERSE_SIZE="${FI_UNIVERSE_SIZE:-${SLURM_NTASKS:-$((NODES * TASKS_PER_NODE)
 NCCL_MIN_NCHANNELS="${NCCL_MIN_NCHANNELS:-4}"
 NCCL_NCHANNELS_PER_NET_PEER="${NCCL_NCHANNELS_PER_NET_PEER:-4}"
 NCCL_CROSS_NIC="${NCCL_CROSS_NIC:-1}"
+NCCL_RUNTIME_PROFILE="${NCCL_RUNTIME_PROFILE:-default}" # default or host
 # The OpenMPI-backed benchmark defaults away from the direct net-GDR path
 # because that path has tripped FI_ENOSPC in this containerized setup. The
 # MPICH-backed benchmark target is intentionally used to test PHB+GDRCopy.
@@ -59,6 +60,14 @@ NCCL_NET_GDR_LEVEL="${NCCL_NET_GDR_LEVEL:-${DEFAULT_NCCL_NET_GDR_LEVEL}}"
 NCCL_GDRCOPY_ENABLE="${NCCL_GDRCOPY_ENABLE:-${DEFAULT_NCCL_GDRCOPY_ENABLE}}"
 NCCL_PROTO="${NCCL_PROTO:-^LL128}"
 CXI_DEVICE_MAP="${CXI_DEVICE_MAP:-cxi3,cxi2,cxi1,cxi0}"
+
+case "${NCCL_RUNTIME_PROFILE}" in
+  default|host) ;;
+  *)
+    echo "Unsupported NCCL_RUNTIME_PROFILE=${NCCL_RUNTIME_PROFILE}; expected default or host" >&2
+    exit 2
+    ;;
+esac
 
 mkdir -p "${RESULT_DIR}"
 
@@ -99,36 +108,50 @@ COMMON_ENV=(
   -e 'PMI_*'
   -e 'PMIX_*'
   -e PMIX_MCA_psec=native
-  -e FI_MR_CACHE_MONITOR=userfaultfd
   -e FI_CXI_DISABLE_HOST_REGISTER=1
-  -e FI_CXI_DEFAULT_CQ_SIZE=131072
-  -e FI_CXI_DEFAULT_TX_SIZE=16384
-  -e FI_CXI_DEFAULT_RX_SIZE=16384
-  -e FI_CXI_RX_MATCH_MODE=software
-  -e FI_CXI_DISABLE_NON_INJECT_MSG_IDC=1
-  -e FI_CXI_RDZV_PROTO=alt_read
   -e FI_CXI_RDZV_GET_MIN=0
-  -e FI_CXI_RDZV_THRESHOLD=0
-  -e FI_CXI_RDZV_EAGER_SIZE=0
-  -e FI_HMEM_CUDA_USE_GDRCOPY=1
-  -e FI_UNIVERSE_SIZE="${FI_UNIVERSE_SIZE}"
-  -e CXI_DEVICE_MAP="${CXI_DEVICE_MAP}"
   -e NVIDIA_VISIBLE_DEVICES=all
   -e CUDA_VISIBLE_DEVICES=0,1,2,3
   -e LD_LIBRARY_PATH=/opt/pmix/lib:/usr/local/lib:/usr/lib:/usr/lib64:/usr/lib64/nvidia:/usr/local/cuda/compat:/usr/local/cuda/lib64
-  -e NCCL_CROSS_NIC="${NCCL_CROSS_NIC}"
+  -e NCCL_RUNTIME_PROFILE="${NCCL_RUNTIME_PROFILE}"
   -e NCCL_SOCKET_IFNAME=hsn
   -e NCCL_NET_GDR_LEVEL="${NCCL_NET_GDR_LEVEL}"
-  -e NCCL_GDRCOPY_ENABLE="${NCCL_GDRCOPY_ENABLE}"
-  -e NCCL_MIN_NCHANNELS="${NCCL_MIN_NCHANNELS}"
-  -e NCCL_NCHANNELS_PER_NET_PEER="${NCCL_NCHANNELS_PER_NET_PEER}"
-  -e NCCL_PROTO="${NCCL_PROTO}"
   -e NCCL_DEBUG="${NCCL_DEBUG}"
 )
 
+if [[ "${NCCL_RUNTIME_PROFILE}" == "host" ]]; then
+  COMMON_ENV+=(
+    -e FI_CXI_SAFE_DEVMEM_COPY_THRESHOLD=16777216
+  )
+else
+  COMMON_ENV+=(
+    -e FI_MR_CACHE_MONITOR=userfaultfd
+    -e FI_CXI_DEFAULT_CQ_SIZE=131072
+    -e FI_CXI_DEFAULT_TX_SIZE=16384
+    -e FI_CXI_DEFAULT_RX_SIZE=16384
+    -e FI_CXI_RX_MATCH_MODE=software
+    -e FI_CXI_DISABLE_NON_INJECT_MSG_IDC=1
+    -e FI_CXI_RDZV_PROTO=alt_read
+    -e FI_CXI_RDZV_THRESHOLD=0
+    -e FI_CXI_RDZV_EAGER_SIZE=0
+    -e FI_HMEM_CUDA_USE_GDRCOPY=1
+    -e FI_UNIVERSE_SIZE="${FI_UNIVERSE_SIZE}"
+    -e CXI_DEVICE_MAP="${CXI_DEVICE_MAP}"
+    -e NCCL_CROSS_NIC="${NCCL_CROSS_NIC}"
+    -e NCCL_GDRCOPY_ENABLE="${NCCL_GDRCOPY_ENABLE}"
+    -e NCCL_MIN_NCHANNELS="${NCCL_MIN_NCHANNELS}"
+    -e NCCL_NCHANNELS_PER_NET_PEER="${NCCL_NCHANNELS_PER_NET_PEER}"
+    -e NCCL_PROTO="${NCCL_PROTO}"
+  )
+fi
+
 MPI_ENV=()
 if [[ "${NCCL_MPI_IMPL}" == "mpich" ]]; then
-  MPI_ENV=(-e MPIR_CVAR_CH4_OFI_ENABLE_HMEM=1)
+  if [[ "${NCCL_RUNTIME_PROFILE}" == "host" ]]; then
+    MPI_ENV=(-e MPICH_GPU_SUPPORT_ENABLED=0)
+  else
+    MPI_ENV=(-e MPIR_CVAR_CH4_OFI_ENABLE_HMEM=1)
+  fi
 else
   MPI_ENV=(-e OMPI_MCA_pml=ob1 -e OMPI_MCA_btl=self,tcp,sm)
 fi
@@ -155,7 +178,11 @@ run_case() {
   local status
 
   if [[ "${provider}" == "cxi" ]]; then
-    provider_env=(-e FI_PROVIDER=cxi -e NCCL_NET="AWS Libfabric")
+    if [[ "${NCCL_RUNTIME_PROFILE}" == "host" ]]; then
+      provider_env=(-e NCCL_NET="AWS Libfabric")
+    else
+      provider_env=(-e FI_PROVIDER=cxi -e NCCL_NET="AWS Libfabric")
+    fi
     cxi_mounts=("${CXI_MOUNTS[@]}")
   else
     provider_env=(-e FI_PROVIDER=tcp -e NCCL_NET=Socket)
@@ -164,7 +191,7 @@ run_case() {
 
   set +e
   {
-    echo "===== BEGIN BENCHMARK name=${name} suite=nccl impl=nccl mode=gpu provider=${provider} nodes=${NODES} ntasks=$((NODES * TASKS_PER_NODE)) tasks_per_node=${TASKS_PER_NODE} command=/opt/nccl-tests/build/all_reduce_perf ${NCCL_TEST_ARGS} ====="
+    echo "===== BEGIN BENCHMARK name=${name} suite=nccl impl=nccl mode=gpu profile=${NCCL_RUNTIME_PROFILE} provider=${provider} nodes=${NODES} ntasks=$((NODES * TASKS_PER_NODE)) tasks_per_node=${TASKS_PER_NODE} command=/opt/nccl-tests/build/all_reduce_perf ${NCCL_TEST_ARGS} ====="
     srun -N "${NODES}" \
       --ntasks-per-node="${TASKS_PER_NODE}" \
       --gpus-per-node="${GPUS_PER_NODE}" \
@@ -186,7 +213,7 @@ run_case() {
       "${GPU_MOUNTS[@]}" \
       "${NVIDIA_LIBRARY_MOUNTS[@]}" \
       "${IMAGE}" \
-      bash -lc 'if [[ "${FI_PROVIDER:-}" == "cxi" && -z "${FI_CXI_DEVICE_NAME:-}" ]]; then local_rank="${SLURM_LOCALID:-0}"; IFS=, read -r -a cxi_devices <<< "${CXI_DEVICE_MAP:-cxi3,cxi2,cxi1,cxi0}"; if (( local_rank < ${#cxi_devices[@]} )); then export FI_CXI_DEVICE_NAME="${cxi_devices[$local_rank]}"; else export FI_CXI_DEVICE_NAME="cxi${local_rank}"; fi; fi; echo "rank=${SLURM_PROCID:-?} local_rank=${SLURM_LOCALID:-?} CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-} FI_CXI_DEVICE_NAME=${FI_CXI_DEVICE_NAME:-} CXI_DEVICE_MAP=${CXI_DEVICE_MAP:-}"; /opt/nccl-tests/build/all_reduce_perf "$@"' bash ${NCCL_TEST_ARGS}
+      bash -lc 'if [[ "${NCCL_RUNTIME_PROFILE:-default}" == "host" ]]; then unset FI_PROVIDER FI_CXI_DEVICE_NAME CXI_DEVICE_MAP; elif [[ "${FI_PROVIDER:-}" == "cxi" && -z "${FI_CXI_DEVICE_NAME:-}" ]]; then local_rank="${SLURM_LOCALID:-0}"; IFS=, read -r -a cxi_devices <<< "${CXI_DEVICE_MAP:-cxi3,cxi2,cxi1,cxi0}"; if (( local_rank < ${#cxi_devices[@]} )); then export FI_CXI_DEVICE_NAME="${cxi_devices[$local_rank]}"; else export FI_CXI_DEVICE_NAME="cxi${local_rank}"; fi; fi; echo "rank=${SLURM_PROCID:-?} local_rank=${SLURM_LOCALID:-?} CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-} FI_PROVIDER=${FI_PROVIDER:-} FI_CXI_DEVICE_NAME=${FI_CXI_DEVICE_NAME:-} CXI_DEVICE_MAP=${CXI_DEVICE_MAP:-}"; /opt/nccl-tests/build/all_reduce_perf "$@"' bash ${NCCL_TEST_ARGS}
     status=$?
     echo "===== END BENCHMARK name=${name} status=${status} ====="
     exit "${status}"
@@ -211,10 +238,16 @@ run_optional_case() {
 
 echo "IMAGE=${IMAGE}"
 echo "NCCL_MPI_IMPL=${NCCL_MPI_IMPL}"
+echo "NCCL_RUNTIME_PROFILE=${NCCL_RUNTIME_PROFILE}"
 echo "RESULT_DIR=${RESULT_DIR}"
-echo "CXI_DEVICE_MAP=${CXI_DEVICE_MAP}"
 echo "NCCL_NET_GDR_LEVEL=${NCCL_NET_GDR_LEVEL}"
-echo "NCCL_GDRCOPY_ENABLE=${NCCL_GDRCOPY_ENABLE}"
+if [[ "${NCCL_RUNTIME_PROFILE}" == "host" ]]; then
+  echo "CXI_DEVICE_MAP=${CXI_DEVICE_MAP} (unset inside container)"
+  echo "NCCL_GDRCOPY_ENABLE=${NCCL_GDRCOPY_ENABLE} (not exported by host profile)"
+else
+  echo "CXI_DEVICE_MAP=${CXI_DEVICE_MAP}"
+  echo "NCCL_GDRCOPY_ENABLE=${NCCL_GDRCOPY_ENABLE}"
+fi
 
 if [[ "${NCCL_MPI_IMPL}" == "mpich" ]]; then
   run_case "nccl-mpich-gpu-all-reduce-cxi" cxi
