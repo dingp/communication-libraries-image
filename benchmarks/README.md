@@ -169,3 +169,4 @@ Committed benchmark snapshots:
 
 - [`reports/perlmutter-20260426T072155Z.md`](reports/perlmutter-20260426T072155Z.md): baseline MPICH, OpenMPI, NCCL, and NVSHMEM results.
 - [`reports/perlmutter-openmpi-ob1-btl-20260426.md`](reports/perlmutter-openmpi-ob1-btl-20260426.md): focused OpenMPI `ob1`/BTL shared-memory experiment.
+- [`reports/nccl-host-aws-ofi-1.19.0-libfabric-2.1.0-20260508.md`](reports/nccl-host-aws-ofi-1.19.0-libfabric-2.1.0-20260508.md): host-side NCCL/aws-ofi-nccl 1.19.0 test with scratch libfabric 2.1.0.
