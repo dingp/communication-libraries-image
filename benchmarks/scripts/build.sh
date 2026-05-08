@@ -35,6 +35,7 @@ all_targets=(
   bench-openmpi-ofi-ucx-cpu
   bench-openmpi-ofi-ucx-gpu
   bench-nccl-gpu
+  bench-nccl-mpich-gpu
   bench-nvshmem-gpu
 )
 

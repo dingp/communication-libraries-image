@@ -70,6 +70,7 @@ Override those variables when testing direct GPU-memory transport.
 
 The distributed NCCL benchmark uses a benchmark-only image, `bench-nccl-gpu`, because `all_reduce_perf` uses MPI for rank wire-up in that mode.
 The production `nccl-gpu` image remains MPI-free.
+The alternate benchmark image `bench-nccl-mpich-gpu` uses `mpich-gpu` as its base and builds MPI-enabled `nccl-tests` with MPICH. It is intended for PHB plus GDRCopy experiments and defaults to `NCCL_NET_GDR_LEVEL=PHB` and `NCCL_GDRCOPY_ENABLE=1`.
 
 Perlmutter benchmark snapshot from 2026-04-26:
 
@@ -81,6 +82,12 @@ Run the NCCL benchmark:
 
 ```bash
 sbatch benchmarks/scripts/perlmutter/run-nccl-all-reduce-gpu.sbatch
+```
+
+Run the MPICH-backed PHB/GDRCopy variant:
+
+```bash
+NCCL_MPI_IMPL=mpich sbatch --export=ALL benchmarks/scripts/perlmutter/run-nccl-all-reduce-gpu.sbatch
 ```
 
 Useful overrides:

@@ -19,7 +19,25 @@ JOB_OUTPUT_DIR="${JOB_OUTPUT_DIR:-${SCRATCH}/communication-libraries-image/slurm
 mkdir -p "${JOB_OUTPUT_DIR}"
 exec > >(tee -a "${JOB_OUTPUT_DIR}/${SLURM_JOB_NAME:-job}-${SLURM_JOB_ID:-manual}.out") 2>&1
 
-IMAGE="${IMAGE:-ghcr.io/dingp/communication-libraries-image:bench-nccl-gpu}"
+NCCL_MPI_IMPL="${NCCL_MPI_IMPL:-openmpi}" # openmpi or mpich
+case "${NCCL_MPI_IMPL}" in
+  openmpi)
+    DEFAULT_IMAGE="ghcr.io/dingp/communication-libraries-image:bench-nccl-gpu"
+    DEFAULT_NCCL_NET_GDR_LEVEL="LOC"
+    DEFAULT_NCCL_GDRCOPY_ENABLE="0"
+    ;;
+  mpich)
+    DEFAULT_IMAGE="ghcr.io/dingp/communication-libraries-image:bench-nccl-mpich-gpu"
+    DEFAULT_NCCL_NET_GDR_LEVEL="PHB"
+    DEFAULT_NCCL_GDRCOPY_ENABLE="1"
+    ;;
+  *)
+    echo "Unsupported NCCL_MPI_IMPL=${NCCL_MPI_IMPL}; expected openmpi or mpich" >&2
+    exit 2
+    ;;
+esac
+
+IMAGE="${IMAGE:-${DEFAULT_IMAGE}}"
 WORKDIR="${WORKDIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 RESULT_ROOT="${RESULT_ROOT:-${SCRATCH}/communication-libraries-image/benchmarks/results}"
 RESULT_DIR="${RESULT_DIR:-${RESULT_ROOT}/${SLURM_JOB_ID:-manual}}"
@@ -34,10 +52,11 @@ FI_UNIVERSE_SIZE="${FI_UNIVERSE_SIZE:-${SLURM_NTASKS:-$((NODES * TASKS_PER_NODE)
 NCCL_MIN_NCHANNELS="${NCCL_MIN_NCHANNELS:-4}"
 NCCL_NCHANNELS_PER_NET_PEER="${NCCL_NCHANNELS_PER_NET_PEER:-4}"
 NCCL_CROSS_NIC="${NCCL_CROSS_NIC:-1}"
-# The direct net-GDR path currently trips FI_ENOSPC with aws-ofi-nccl on
-# Perlmutter containers. Keep this overrideable for follow-up tuning.
-NCCL_NET_GDR_LEVEL="${NCCL_NET_GDR_LEVEL:-LOC}"
-NCCL_GDRCOPY_ENABLE="${NCCL_GDRCOPY_ENABLE:-0}"
+# The OpenMPI-backed benchmark defaults away from the direct net-GDR path
+# because that path has tripped FI_ENOSPC in this containerized setup. The
+# MPICH-backed benchmark target is intentionally used to test PHB+GDRCopy.
+NCCL_NET_GDR_LEVEL="${NCCL_NET_GDR_LEVEL:-${DEFAULT_NCCL_NET_GDR_LEVEL}}"
+NCCL_GDRCOPY_ENABLE="${NCCL_GDRCOPY_ENABLE:-${DEFAULT_NCCL_GDRCOPY_ENABLE}}"
 NCCL_PROTO="${NCCL_PROTO:-^LL128}"
 CXI_DEVICE_MAP="${CXI_DEVICE_MAP:-cxi3,cxi2,cxi1,cxi0}"
 
@@ -80,8 +99,6 @@ COMMON_ENV=(
   -e 'PMI_*'
   -e 'PMIX_*'
   -e PMIX_MCA_psec=native
-  -e OMPI_MCA_pml=ob1
-  -e OMPI_MCA_btl=self,tcp,sm
   -e FI_MR_CACHE_MONITOR=userfaultfd
   -e FI_CXI_DISABLE_HOST_REGISTER=1
   -e FI_CXI_DEFAULT_CQ_SIZE=131072
@@ -108,6 +125,13 @@ COMMON_ENV=(
   -e NCCL_PROTO="${NCCL_PROTO}"
   -e NCCL_DEBUG="${NCCL_DEBUG}"
 )
+
+MPI_ENV=()
+if [[ "${NCCL_MPI_IMPL}" == "mpich" ]]; then
+  MPI_ENV=(-e MPIR_CVAR_CH4_OFI_ENABLE_HMEM=1)
+else
+  MPI_ENV=(-e OMPI_MCA_pml=ob1 -e OMPI_MCA_btl=self,tcp,sm)
+fi
 
 if [[ -n "${NCCL_DEBUG_SUBSYS}" ]]; then
   COMMON_ENV+=(-e NCCL_DEBUG_SUBSYS="${NCCL_DEBUG_SUBSYS}")
@@ -149,6 +173,7 @@ run_case() {
       podman-hpc shared-run --rm --userns=keep-id \
       "${PMIX_HELPER_ARGS[@]}" \
       "${COMMON_ENV[@]}" \
+      "${MPI_ENV[@]}" \
       "${provider_env[@]}" \
       --ipc=host \
       --network=host \
@@ -185,13 +210,22 @@ run_optional_case() {
 }
 
 echo "IMAGE=${IMAGE}"
+echo "NCCL_MPI_IMPL=${NCCL_MPI_IMPL}"
 echo "RESULT_DIR=${RESULT_DIR}"
 echo "CXI_DEVICE_MAP=${CXI_DEVICE_MAP}"
 echo "NCCL_NET_GDR_LEVEL=${NCCL_NET_GDR_LEVEL}"
 echo "NCCL_GDRCOPY_ENABLE=${NCCL_GDRCOPY_ENABLE}"
 
-run_case "nccl-gpu-all-reduce-cxi" cxi
+if [[ "${NCCL_MPI_IMPL}" == "mpich" ]]; then
+  run_case "nccl-mpich-gpu-all-reduce-cxi" cxi
+else
+  run_case "nccl-gpu-all-reduce-cxi" cxi
+fi
 
 if [[ "${RUN_DEGRADED}" == "1" ]]; then
-  run_optional_case "nccl-gpu-all-reduce-socket" tcp
+  if [[ "${NCCL_MPI_IMPL}" == "mpich" ]]; then
+    run_optional_case "nccl-mpich-gpu-all-reduce-socket" tcp
+  else
+    run_optional_case "nccl-gpu-all-reduce-socket" tcp
+  fi
 fi

@@ -345,5 +345,6 @@ ghcr.io/dingp/communication-libraries-image:bench-openmpi-gpu
 ghcr.io/dingp/communication-libraries-image:bench-openmpi-ofi-ucx-cpu
 ghcr.io/dingp/communication-libraries-image:bench-openmpi-ofi-ucx-gpu
 ghcr.io/dingp/communication-libraries-image:bench-nccl-gpu
+ghcr.io/dingp/communication-libraries-image:bench-nccl-mpich-gpu
 ghcr.io/dingp/communication-libraries-image:bench-nvshmem-gpu
 ```

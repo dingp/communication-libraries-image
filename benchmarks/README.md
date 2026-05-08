@@ -13,9 +13,10 @@ The benchmark image stages use the main repository images as base images and add
 | `bench-openmpi-ofi-ucx-cpu` | `openmpi-ofi-ucx-cpu` | OSU Micro-Benchmarks |
 | `bench-openmpi-ofi-ucx-gpu` | `openmpi-ofi-ucx-gpu` | OSU Micro-Benchmarks with CUDA buffers |
 | `bench-nccl-gpu` | `openmpi-ofi-ucx-gpu` | MPI-enabled `nccl-tests` for distributed `all_reduce_perf` |
+| `bench-nccl-mpich-gpu` | `mpich-gpu` | MPI-enabled `nccl-tests` for distributed `all_reduce_perf`, with PHB GDRCopy defaults |
 | `bench-nvshmem-gpu` | `nvshmem-gpu` | Packaged NVSHMEM performance tests |
 
-The production `nccl-gpu` image remains MPI-free. The benchmark-only `bench-nccl-gpu` target includes OpenMPI because the distributed `all_reduce_perf` test uses MPI for rank wire-up.
+The production `nccl-gpu` image remains MPI-free. The benchmark-only NCCL targets include MPI because the distributed `all_reduce_perf` test uses MPI for rank wire-up. Use `bench-nccl-gpu` for the OpenMPI-backed launcher path and `bench-nccl-mpich-gpu` for the MPICH-backed launcher path.
 
 ## Build
 
@@ -47,6 +48,12 @@ Override the NCCL package when validating a different CUDA 13.2 NCCL build:
 
 ```bash
 NCCL_PACKAGE_VERSION=2.30.4-1+cuda13.2 benchmarks/scripts/build.sh bench-nccl-gpu
+```
+
+Build the MPICH-backed NCCL benchmark image:
+
+```bash
+benchmarks/scripts/build.sh bench-nccl-mpich-gpu
 ```
 
 ## Run On Perlmutter
@@ -112,6 +119,12 @@ CXI:         cxi3  cxi2  cxi1  cxi0
 ```
 
 The default can be changed with `CXI_DEVICE_MAP`. The script also defaults `NCCL_NET_GDR_LEVEL=LOC` and `NCCL_GDRCOPY_ENABLE=0` because the direct net-GDR path currently returns `FI_ENOSPC` in this containerized Perlmutter setup. This was reproduced with NCCL 2.29.7-1+cuda13.2 and 2.30.4-1+cuda13.2 when using aws-ofi-nccl 1.19.0. Set `NCCL_NET_GDR_LEVEL=PHB NCCL_GDRCOPY_ENABLE=1` before `sbatch` when testing direct GPU-memory transport. Set `RUN_DEGRADED=1` to add the optional socket comparison; it is treated as diagnostic and does not fail the batch job if it fails.
+
+Run the MPICH-backed NCCL benchmark. This selects `bench-nccl-mpich-gpu` and defaults to `NCCL_NET_GDR_LEVEL=PHB` with `NCCL_GDRCOPY_ENABLE=1`:
+
+```bash
+NCCL_MPI_IMPL=mpich sbatch --export=ALL benchmarks/scripts/perlmutter/run-nccl-all-reduce-gpu.sbatch
+```
 
 Run NVSHMEM device all-to-all latency on two GPU nodes:
 
