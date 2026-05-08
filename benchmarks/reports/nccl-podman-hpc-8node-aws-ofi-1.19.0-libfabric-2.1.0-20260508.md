@@ -80,9 +80,61 @@ The host-profile container run closely matches the comparable 8-node host run.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Host, no DMA-BUF | 8 | 32 | 120,628 us | 35.61 GB/s | 68.99 GB/s | 18.8798 GB/s |
 | podman-hpc, host profile | 8 | 32 | 120,722 us | 35.58 GB/s | 68.93 GB/s | 19.5893 GB/s |
+| Shifter, host scratch install | 8 | 32 | 120,881 us | 35.53 GB/s | 68.84 GB/s | 19.4726 GB/s |
 | podman-hpc, host profile | 2 | 8 | 103,702 us | 41.42 GB/s | 72.48 GB/s | 23.7324 GB/s |
 
-At 4 GiB, the 8-node container host-profile run is effectively equal to the 8-node host run. Compared with the earlier 2-node container host-profile run, 8 nodes reduce bus bandwidth from 72.48 GB/s to 68.93 GB/s, about a 4.9% drop.
+At 4 GiB, both 8-node container runs using the host-tuned runtime stack are effectively equal to the 8-node host run. Compared with the earlier 2-node container host-profile run, 8 nodes reduce bus bandwidth from 72.48 GB/s to about 68.9 GB/s, about a 4.9% drop.
+
+## Shifter Follow-Up
+
+The same scratch-built NCCL/aws-ofi-nccl/libfabric stack was also tested through Shifter to compare with the `podman-hpc` result. The Shifter test used the host-side install rooted at:
+
+```text
+${SCRATCH}/communication-libraries-image/nccl-ofi-plugin-runs/20260508T030424Z-aws-ofi-1.19.0-libfabric-2.1.0
+```
+
+Two scripts in the separate NCCL host-test checkout were updated for this run:
+
+| Script | Change |
+| --- | --- |
+| `env_nccl.sh` | Points `NCCL_OFI_RUN_ROOT` at the scratch host install and derives `NCCL_HOME`, `NCCL_PLUGIN_HOME`, and `LIBFABRIC_HOME` from it. Prepends the scratch NCCL, aws-ofi-nccl plugin, plugin dependency, and libfabric directories to `LD_LIBRARY_PATH`. Exports the runtime settings used by the successful host run: `NCCL_NET=AWS Libfabric`, `NCCL_NET_GDR_LEVEL=PHB`, `NCCL_SOCKET_IFNAME=hsn`, `OFI_NCCL_DISABLE_DMABUF=1`, `FI_CXI_DISABLE_HOST_REGISTER=1`, `FI_CXI_RDZV_GET_MIN=0`, and `FI_CXI_SAFE_DEVMEM_COPY_THRESHOLD=16777216`. |
+| `run_tests_shifter.sh` | Changed the Slurm shape to 8 GPU nodes, 4 tasks per node, and 4 GPUs per node. Removed `--gpus-per-task=1`; the batch allocation owns the GPU count and the step uses `srun --mpi=pmi2 shifter --module gpu`, matching the working `podman-hpc` launch style. Writes logs under `${SCRATCH}/nccl-ofi-plugin/shifter-runs/<jobid>`, builds `nccl-tests` in scratch against the scratch NCCL install with `MPI=1`, and prints rank/GPU visibility diagnostics before running `all_reduce_perf -b 8 -e 4G -f 2`. |
+
+One Shifter-specific runtime dependency had to be staged into the plugin dependency directory:
+
+```text
+${NCCL_PLUGIN_HOME}/deps/lib/libjson-c.so.5
+```
+
+Without that library, NCCL found `libnccl-net.so` but failed to initialize the network plugin:
+
+```text
+NET/Plugin: libnccl-net.so: libjson-c.so.5: cannot open shared object file: No such file or directory
+NCCL WARN Failed to initialize any NET plugin
+```
+
+After staging `libjson-c.so.5`, the Shifter run completed successfully.
+The successful job excluded `nid001208` because prior Shifter attempts on that node exposed only three GPUs to a four-rank-per-node step; the completed job had four visible GPUs on each allocated node.
+
+| Run | Job | Nodes | Ranks | NCCL | 4 GiB in-place time | 4 GiB in-place algbw | 4 GiB in-place busbw | Avg busbw | Result |
+| --- | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | --- |
+| Shifter, host scratch install | `52680314` | 8 | 32 | `2.29.2+cuda13.0` | 120,881 us | 35.53 GB/s | 68.84 GB/s | 19.4726 GB/s | Passed |
+
+The final 4 GiB row from the successful Shifter run:
+
+```text
+bytes        count       type   redop  root   time(us) algbw busbw errors time(us) algbw busbw errors
+4294967296   1073741824 float  sum    -1     120734   35.57 68.92 0      120881   35.53 68.84 0
+```
+
+The run selected the aws-ofi-nccl plugin and completed without validation errors:
+
+```text
+Using network AWS Libfabric
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 19.4726
+# Collective test concluded: all_reduce_perf
+```
 
 ## Run Instructions
 
