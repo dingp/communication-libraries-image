@@ -3,7 +3,7 @@ ARG OSU_VERSION=7.5.2
 ARG AWS_OFI_NCCL_VERSION=1.19.0
 ARG NCCL_PACKAGE_VERSION=2.29.7-1+cuda13.2
 ARG NCCL_SOURCE_BRANCH=v2.29.2-1
-ARG NCCL_MPICH_AWS_OFI_NCCL_VERSION=1.6.0
+ARG NCCL_MPICH_AWS_OFI_NCCL_VERSION=1.19.0
 ARG NCCL_TESTS_VERSION=2.17.1
 
 FROM ${BASE_IMAGE_REPO}:mpich-cpu AS bench-mpich-cpu
@@ -155,12 +155,14 @@ RUN wget -q -O nccl-source.tar.gz https://github.com/NVIDIA/nccl/archive/refs/ta
     && cd .. \
     && rm -rf nccl-source.tar.gz nccl-* \
     && ldconfig
-# Cray libfabric headers still define container_of; libfabric 2.1 headers do not.
+# aws-ofi-nccl 1.6.x used container_of from libfabric headers; libfabric 2.1
+# headers do not provide it. Newer aws-ofi-nccl releases use a different source
+# layout, so keep the compatibility patch conditional for old-version rebuilds.
 RUN wget -q https://github.com/aws/aws-ofi-nccl/releases/download/v${NCCL_MPICH_AWS_OFI_NCCL_VERSION}/aws-ofi-nccl-${NCCL_MPICH_AWS_OFI_NCCL_VERSION}.tar.gz \
     && tar xf aws-ofi-nccl-${NCCL_MPICH_AWS_OFI_NCCL_VERSION}.tar.gz \
     && cd aws-ofi-nccl-${NCCL_MPICH_AWS_OFI_NCCL_VERSION} \
-    && sed -i '/#include <ctype.h>/a #include <stddef.h>\n#ifndef container_of\n#define container_of(ptr, type, field) ((type *)((char *)(ptr) - offsetof(type, field)))\n#endif' src/nccl_ofi_net.c \
-    && ./configure --prefix=/usr --with-cuda=/usr/local/cuda --with-libfabric=/usr --disable-tests \
+    && if [ -f src/nccl_ofi_net.c ]; then sed -i '/#include <ctype.h>/a #include <stddef.h>\n#ifndef container_of\n#define container_of(ptr, type, field) ((type *)((char *)(ptr) - offsetof(type, field)))\n#endif' src/nccl_ofi_net.c; fi \
+    && ./configure --prefix=/usr --with-cuda=/usr/local/cuda --disable-tests \
     && make -j$(nproc) \
     && make install \
     && ldconfig \
@@ -177,6 +179,7 @@ RUN wget -q -O nccl-tests-${NCCL_TESTS_VERSION}.tar.gz https://github.com/NVIDIA
 ENV NCCL_NET=AWS\ Libfabric
 ENV NCCL_SOCKET_IFNAME=hsn
 ENV NCCL_NET_GDR_LEVEL=PHB
+ENV OFI_NCCL_DISABLE_DMABUF=1
 ENV MPICH_GPU_SUPPORT_ENABLED=0
 ENV FI_CXI_DISABLE_HOST_REGISTER=1
 ENV FI_CXI_RDZV_GET_MIN=0

@@ -13,7 +13,7 @@ The benchmark image stages use the main repository images as base images and add
 | `bench-openmpi-ofi-ucx-cpu` | `openmpi-ofi-ucx-cpu` | OSU Micro-Benchmarks |
 | `bench-openmpi-ofi-ucx-gpu` | `openmpi-ofi-ucx-gpu` | OSU Micro-Benchmarks with CUDA buffers |
 | `bench-nccl-gpu` | `openmpi-ofi-ucx-gpu` | MPI-enabled `nccl-tests` for distributed `all_reduce_perf` |
-| `bench-nccl-mpich-gpu` | `mpich-gpu` | MPI-enabled `nccl-tests` for distributed `all_reduce_perf`, with PHB GDRCopy defaults |
+| `bench-nccl-mpich-gpu` | `mpich-gpu` | MPI-enabled `nccl-tests` for distributed `all_reduce_perf`, with aws-ofi-nccl 1.19.0, PHB GDRCopy, and DMA-BUF disabled by default |
 | `bench-nvshmem-gpu` | `nvshmem-gpu` | Packaged NVSHMEM performance tests |
 
 The production `nccl-gpu` image remains MPI-free. The benchmark-only NCCL targets include MPI because the distributed `all_reduce_perf` test uses MPI for rank wire-up. Use `bench-nccl-gpu` for the OpenMPI-backed launcher path and `bench-nccl-mpich-gpu` for the MPICH-backed launcher path.
@@ -54,6 +54,12 @@ Build the MPICH-backed NCCL benchmark image:
 
 ```bash
 benchmarks/scripts/build.sh bench-nccl-mpich-gpu
+```
+
+Override the aws-ofi-nccl version for that MPICH-backed benchmark image:
+
+```bash
+NCCL_MPICH_AWS_OFI_NCCL_VERSION=1.19.0 benchmarks/scripts/build.sh bench-nccl-mpich-gpu
 ```
 
 ## Run On Perlmutter
@@ -120,11 +126,13 @@ CXI:         cxi3  cxi2  cxi1  cxi0
 
 The default can be changed with `CXI_DEVICE_MAP`. The script also defaults `NCCL_NET_GDR_LEVEL=LOC` and `NCCL_GDRCOPY_ENABLE=0` because the direct net-GDR path currently returns `FI_ENOSPC` in this containerized Perlmutter setup. This was reproduced with NCCL 2.29.7-1+cuda13.2 and 2.30.4-1+cuda13.2 when using aws-ofi-nccl 1.19.0. Set `NCCL_NET_GDR_LEVEL=PHB NCCL_GDRCOPY_ENABLE=1` before `sbatch` when testing direct GPU-memory transport. Set `RUN_DEGRADED=1` to add the optional socket comparison; it is treated as diagnostic and does not fail the batch job if it fails.
 
-Run the MPICH-backed NCCL benchmark. This selects `bench-nccl-mpich-gpu` and defaults to `NCCL_NET_GDR_LEVEL=PHB` with `NCCL_GDRCOPY_ENABLE=1`:
+Run the MPICH-backed NCCL benchmark. This selects `bench-nccl-mpich-gpu` and defaults to `NCCL_NET_GDR_LEVEL=PHB`, `NCCL_GDRCOPY_ENABLE=1`, and `OFI_NCCL_DISABLE_DMABUF=1`:
 
 ```bash
 NCCL_MPI_IMPL=mpich sbatch --export=ALL benchmarks/scripts/perlmutter/run-nccl-all-reduce-gpu.sbatch
 ```
+
+The no-DMA-BUF default is intentional for aws-ofi-nccl 1.19.0 on the tested Perlmutter stack. Both host and container runs with libfabric 2.1.0 selected CXI and SENDRECV, but the default DMA-BUF path failed with `NO_SPACE` completions on small receive requests. With `OFI_NCCL_DISABLE_DMABUF=1`, the same 2-node, 8-rank `all_reduce_perf -b 8 -e 4G -f 2` container run completed and reached about 72 GB/s bus bandwidth at 4 GiB.
 
 Run NVSHMEM device all-to-all latency on two GPU nodes:
 

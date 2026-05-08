@@ -56,7 +56,7 @@ GPU:        0     1     2     3
 CXI:        cxi3  cxi2  cxi1  cxi0
 ```
 
-The benchmark script currently defaults to:
+The OpenMPI-backed benchmark path currently defaults to:
 
 ```bash
 NCCL_NET_GDR_LEVEL=LOC
@@ -66,17 +66,33 @@ NCCL_GDRCOPY_ENABLE=0
 This avoids a direct net-GDR path that has returned `FI_ENOSPC` in the current containerized Perlmutter setup.
 Override those variables when testing direct GPU-memory transport.
 
+The MPICH-backed benchmark image, `bench-nccl-mpich-gpu`, defaults to:
+
+```bash
+NCCL_NET_GDR_LEVEL=PHB
+NCCL_GDRCOPY_ENABLE=1
+OFI_NCCL_DISABLE_DMABUF=1
+```
+
+The DMA-BUF disable is intentional for the tested aws-ofi-nccl 1.19.0 plus libfabric 2.1.0 stack. The default DMA-BUF path selected CXI and SENDRECV but failed with `NO_SPACE` completions. Disabling DMA-BUF kept GDRDMA active and completed the 2-node benchmark.
+
 ## Benchmark Results
 
 The distributed NCCL benchmark uses a benchmark-only image, `bench-nccl-gpu`, because `all_reduce_perf` uses MPI for rank wire-up in that mode.
 The production `nccl-gpu` image remains MPI-free.
-The alternate benchmark image `bench-nccl-mpich-gpu` uses `mpich-gpu` as its base and builds MPI-enabled `nccl-tests` with MPICH. It is intended for PHB plus GDRCopy experiments and defaults to `NCCL_NET_GDR_LEVEL=PHB` and `NCCL_GDRCOPY_ENABLE=1`.
+The alternate benchmark image `bench-nccl-mpich-gpu` uses `mpich-gpu` as its base and builds MPI-enabled `nccl-tests` with MPICH. It is intended for PHB plus GDRCopy experiments and defaults to `NCCL_NET_GDR_LEVEL=PHB`, `NCCL_GDRCOPY_ENABLE=1`, and `OFI_NCCL_DISABLE_DMABUF=1`.
 
 Perlmutter benchmark snapshot from 2026-04-26:
 
 | Image | Test | Placement | Best result |
 | --- | --- | --- | --- |
 | `bench-nccl-gpu` | `all_reduce_perf -b 8 -e 128M -f 2` | 2 GPU nodes, 8 ranks | 18.34 GB/s in-place bus bandwidth at 8 MiB |
+
+Additional MPICH-backed validation from 2026-05-08:
+
+| Image | Test | Placement | Best result |
+| --- | --- | --- | --- |
+| `bench-nccl-mpich-gpu` | `all_reduce_perf -b 8 -e 4G -f 2` | 2 GPU nodes, 8 ranks | 72.18 GB/s in-place bus bandwidth at 4 GiB |
 
 Run the NCCL benchmark:
 
