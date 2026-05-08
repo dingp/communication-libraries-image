@@ -114,7 +114,6 @@ NCCL WARN Failed to initialize any NET plugin
 ```
 
 After staging `libjson-c.so.5`, the Shifter run completed successfully.
-The successful job excluded `nid001208` because prior Shifter attempts on that node exposed only three GPUs to a four-rank-per-node step; the completed job had four visible GPUs on each allocated node.
 
 | Run | Job | Nodes | Ranks | NCCL | 4 GiB in-place time | 4 GiB in-place algbw | 4 GiB in-place busbw | Avg busbw | Result |
 | --- | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | --- |
