@@ -31,6 +31,7 @@ python3 /workspace/tests/test_mpi4py.py
 | `libfabric-gpu` | `run-libfabric-gpu.sbatch` |
 | `mpich-cpu` | `run-mpich-cpu.sbatch` |
 | `mpich-gpu` | `run-mpich-gpu.sbatch` |
+| `bench-mpich-gpu` | `run-bench-mpich-gpu-mpi4py.sbatch` |
 | `openmpi-cpu` | `run-openmpi-cpu.sbatch` |
 | `openmpi-gpu` | `run-openmpi-gpu.sbatch` |
 | `openmpi-ofi-ucx-cpu` | `run-openmpi-ofi-ucx-cpu.sbatch` |
